@@ -16,6 +16,7 @@ const formatTime = (seconds: number): string => {
 
 interface EmphasisAnimationSectionProps {
   clipId: string;
+  clipIds?: readonly string[];
 }
 
 const EMPHASIS_ANIMATIONS: {
@@ -169,10 +170,18 @@ const ValueText: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 export const EmphasisAnimationSection: React.FC<
   EmphasisAnimationSectionProps
-> = ({ clipId }) => {
-  const { project, updateClipEmphasisAnimation } = useProjectStore();
+> = ({ clipId, clipIds }) => {
+  const {
+    project,
+    updateClipEmphasisAnimation,
+    beginHistoryGroup,
+    endHistoryGroup,
+  } = useProjectStore();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
+
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const clipDuration = useMemo((): number => {
     const clip = project.timeline.tracks
@@ -246,9 +255,23 @@ export const EmphasisAnimationSection: React.FC<
   const handleAnimationChange = useCallback(
     (updates: Partial<EmphasisAnimation>) => {
       const newAnimation = { ...currentAnimation, ...updates };
-      updateClipEmphasisAnimation(clipId, newAnimation);
+      if (isBatch) beginHistoryGroup("Update emphasis animation on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          updateClipEmphasisAnimation(targetId, newAnimation);
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, currentAnimation, updateClipEmphasisAnimation],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      currentAnimation,
+      updateClipEmphasisAnimation,
+    ],
   );
 
   const handleTypeChange = useCallback(

@@ -8,19 +8,46 @@ import { getPersonSegmentationEngine } from "@openreel/core";
 
 interface BehindSubjectSectionProps {
   clipId: string;
+  clipIds?: readonly string[];
 }
 
 export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
   clipId,
+  clipIds,
 }) => {
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const updateTextBehindSubject = useProjectStore(
     (state) => state.updateTextBehindSubject,
   );
+  const beginHistoryGroup = useProjectStore((state) => state.beginHistoryGroup);
+  const endHistoryGroup = useProjectStore((state) => state.endHistoryGroup);
   const modifiedAt = useProjectStore((state) => state.project.modifiedAt);
   const [isLoading, setIsLoading] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
+
+  const applyBehindSubject = useCallback(
+    (value: boolean) => {
+      if (isBatch) beginHistoryGroup("Place text behind subject on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          updateTextBehindSubject(targetId, value);
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
+    },
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      updateTextBehindSubject,
+    ],
+  );
 
   useEffect(() => {
     const engine = getTitleEngine();
@@ -37,7 +64,7 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
       setEnabled(checked);
 
       if (!checked) {
-        updateTextBehindSubject(clipId, false);
+        applyBehindSubject(false);
         return;
       }
 
@@ -52,7 +79,7 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
             modelError,
           );
           setError("Failed to load AI model. Check your connection.");
-          updateTextBehindSubject(clipId, false);
+          applyBehindSubject(false);
           setEnabled(false);
           setIsLoading(false);
           return;
@@ -60,9 +87,9 @@ export const BehindSubjectSection: React.FC<BehindSubjectSectionProps> = ({
         setIsLoading(false);
       }
 
-      updateTextBehindSubject(clipId, true);
+      applyBehindSubject(true);
     },
-    [clipId, getTitleEngine, updateTextBehindSubject],
+    [applyBehindSubject, getTitleEngine],
   );
 
   return (

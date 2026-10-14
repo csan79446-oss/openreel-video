@@ -92,6 +92,62 @@ export function createClipSlice(set: Set, get: Get): ClipSlice {
         params: { trackId: newTrack.id, mediaId, startTime: clipStartTime },
       };
       const result = await exec.execute(action, projectCopy);
+
+      if (result.success && mediaItem.type === "video") {
+        const hasAudio =
+          mediaItem.metadata?.hasAudio !== false &&
+          (mediaItem.metadata?.channels ?? 1) > 0;
+        if (hasAudio) {
+          const audioTrackId = uuidv4();
+          const audioTrackAction: Action = {
+            type: "track/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              trackType: "audio",
+              trackId: audioTrackId,
+              mode: "standard",
+              name: "Audio",
+            },
+          };
+          const audioTrackResult = await exec.execute(audioTrackAction, projectCopy);
+          if (audioTrackResult.success) {
+            const audioClipAction: Action = {
+              type: "clip/add",
+              id: uuidv4(),
+              timestamp: Date.now(),
+              params: {
+                trackId: audioTrackId,
+                mediaId,
+                startTime: clipStartTime,
+                duration: mediaItem.metadata.duration > 0 ? mediaItem.metadata.duration : undefined,
+              },
+            };
+            await exec.execute(audioClipAction, projectCopy);
+          }
+        }
+
+        const hasCaptionsTrack = projectCopy.timeline.tracks.some(
+          (t) => t.role === "captions" || t.name === "Captions" || t.name === "Subtitles",
+        );
+        if (!hasCaptionsTrack) {
+          const captionTrackId = uuidv4();
+          const captionTrackAction: Action = {
+            type: "track/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              trackId: captionTrackId,
+              trackType: "video",
+              mode: "standard",
+              role: "captions",
+              name: "Captions",
+            },
+          };
+          await exec.execute(captionTrackAction, projectCopy);
+        }
+      }
+
       if (result.success) {
         set({ project: { ...projectCopy, modifiedAt: Date.now() } });
       }

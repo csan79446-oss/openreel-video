@@ -88,6 +88,7 @@ import { resolveCanvasFitDimensions } from "./canvas-fit";
 import {
   getMediaItemCapabilities,
   getVisibleTrackRenderOrder,
+  isCaptionsTrack,
 } from "../timeline/timeline-items";
 
 const DEFAULT_CACHE_CONFIG: FrameCacheConfig = {
@@ -658,6 +659,24 @@ export class VideoEngine {
     const activeStickerClips = this.getActiveStickerClips(timeline, time);
     const activeSubtitles = this.getActiveSubtitles(timeline, time);
 
+    // Consolidated captions live as text clips on the Captions track, which
+    // addTrack appends last (the back-most layer). Painting them inside the
+    // track loop would draw them before the video and hide them behind it, so
+    // they are split out here and burned in after every media layer — the same
+    // compositing contract as timeline.subtitles and the preview playback
+    // overlay pass.
+    const captionTrackIds = new Set(
+      timeline.tracks
+        .filter((track) => !track.hidden && isCaptionsTrack(track))
+        .map((track) => track.id),
+    );
+    const stageTextClips = activeTextClips.filter(
+      (clip) => !captionTrackIds.has(clip.trackId),
+    );
+    const captionTextClips = activeTextClips.filter((clip) =>
+      captionTrackIds.has(clip.trackId),
+    );
+
 
     const allRenderableTracks = getVisibleTrackRenderOrder(timeline.tracks);
 
@@ -1067,7 +1086,7 @@ export class VideoEngine {
         scaleY,
         track.id,
       );
-      for (const textClip of activeTextClips.filter(
+      for (const textClip of stageTextClips.filter(
         (clip) => clip.trackId === track.id,
       )) {
         await this.renderTextClipWithSubjectMask(
@@ -1083,6 +1102,23 @@ export class VideoEngine {
           subjectStreamId,
         );
       }
+    }
+
+    // Caption cues are composited above every media layer so exported frames
+    // match what the preview shows while playing.
+    for (const textClip of captionTextClips) {
+      await this.renderTextClipWithSubjectMask(
+        ctx,
+        textClip,
+        time,
+        width,
+        height,
+        settings.width,
+        settings.height,
+        subjectFrame,
+        options.realtime ?? false,
+        subjectStreamId,
+      );
     }
     subjectFrame?.close();
 
@@ -2037,12 +2073,17 @@ export class VideoEngine {
     const backgroundColor = style?.backgroundColor || "rgba(0, 0, 0, 0.7)";
     const position = style?.position || "bottom";
 
-    ctx.font = `bold ${fontSize}px "${fontFamily}"`;
+    // Include Khmer Unicode font stack fallbacks so Khmer glyphs render seamlessly
+    const fontStack = fontFamily.includes(",")
+      ? fontFamily
+      : `"${fontFamily}", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", "Khmer OS Battambang", "Khmer OS", Arial, sans-serif`;
+    ctx.font = `bold ${fontSize}px ${fontStack}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     const lines = text.split("\n");
-    const lineHeight = fontSize * 1.3;
+    // Khmer Unicode has subscripts and superscripts that need generous line height
+    const lineHeight = fontSize * 1.55;
     const totalHeight = lines.length * lineHeight;
 
     let baseY: number;

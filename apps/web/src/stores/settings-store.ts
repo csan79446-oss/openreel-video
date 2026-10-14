@@ -22,6 +22,12 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
     docsUrl: "https://elevenlabs.io/docs/api-reference",
   },
   {
+    id: "gemini",
+    label: "Gemini TTS (Google AI)",
+    description: "Gemini 3.8 Flash text-to-speech and AI voice generation",
+    docsUrl: "https://aistudio.google.com/apikey",
+  },
+  {
     id: "openai-compatible",
     label: "OpenAI-compatible endpoint",
     description: "Any OpenAI-compatible API host; API key optional",
@@ -47,7 +53,7 @@ export const SERVICE_REGISTRY: readonly ServiceConfig[] = [
   },
 ] as const;
 
-export type TtsProvider = "elevenlabs";
+export type TtsProvider = "elevenlabs" | "gemini";
 export type LlmProvider = "openai-compatible" | "anthropic-compatible";
 export type AggregatorProvider = "kie-ai" | "freepik";
 export type SettingsTab = "general" | "api-keys" | "mcp";
@@ -95,6 +101,8 @@ export interface SettingsState {
   setAutoSaveInterval: (minutes: number) => void;
   setLanguage: (lang: string) => void;
   setDefaultTtsProvider: (provider: TtsProvider) => void;
+  geminiVoice: string;
+  setGeminiVoice: (voice: string) => void;
   setDefaultLlmProvider: (provider: LlmProvider | null) => void;
   setLlmBaseUrl: (url: string) => void;
   setLlmModel: (model: string) => void;
@@ -125,6 +133,7 @@ export const useSettingsStore = create<SettingsState>()(
         language: "en",
 
         defaultTtsProvider: "elevenlabs" as TtsProvider,
+        geminiVoice: "Aoede",
         defaultLlmProvider: null,
         llmBaseUrl: "",
         llmModel: "",
@@ -153,6 +162,9 @@ export const useSettingsStore = create<SettingsState>()(
 
         setDefaultTtsProvider: (provider: TtsProvider) =>
           set({ defaultTtsProvider: provider }),
+
+        setGeminiVoice: (voice: string) =>
+          set({ geminiVoice: voice }),
 
         setDefaultLlmProvider: (provider: LlmProvider | null) =>
           set({ defaultLlmProvider: provider }),
@@ -269,6 +281,7 @@ export const useSettingsStore = create<SettingsState>()(
           autoSaveInterval: state.autoSaveInterval,
           language: state.language,
           defaultTtsProvider: state.defaultTtsProvider,
+          geminiVoice: state.geminiVoice,
           defaultLlmProvider: state.defaultLlmProvider,
           llmBaseUrl: state.llmBaseUrl,
           llmModel: state.llmModel,

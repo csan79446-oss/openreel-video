@@ -129,6 +129,17 @@ describe("InspectorPanel multi-clip workflow", () => {
     expect(screen.queryByText("No selection")).toBeNull();
   });
 
+  it("renders the single-clip animation sections for a timeline clip batch", () => {
+    render(<InspectorPanel />);
+
+    expect(screen.getByText("Keyframes")).toBeInTheDocument();
+    expect(screen.getByText("Clip Transitions")).toBeInTheDocument();
+    expect(screen.getAllByText("Motion Path").length).toBeGreaterThan(0);
+    expect(screen.getByText("Emphasis Animation")).toBeInTheDocument();
+    expect(screen.queryByText("Text Animation")).toBeNull();
+    expect(screen.queryByText("Text Behind Subject")).toBeNull();
+  });
+
   it("nudges every selected visual clip", async () => {
     render(<InspectorPanel />);
 
@@ -228,6 +239,14 @@ describe("InspectorPanel multi-clip workflow", () => {
     expect(screen.queryByLabelText("Text Content")).toBeNull();
     expect(screen.getByText("Text Material")).toBeInTheDocument();
     expect(screen.getByText("3D Text")).toBeInTheDocument();
+    // The six single-clip sections render in batch mode for text overlays.
+    expect(screen.getByText("Keyframes")).toBeInTheDocument();
+    expect(screen.getAllByText("Motion Path").length).toBeGreaterThan(0);
+    expect(screen.getByText("Emphasis Animation")).toBeInTheDocument();
+    expect(screen.getByText("Text Animation")).toBeInTheDocument();
+    expect(screen.getByText("Text Behind Subject")).toBeInTheDocument();
+    // Clip Transitions only apply to timeline clips, not text overlays.
+    expect(screen.queryByText("Clip Transitions")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Bold" }));
     fireEvent.click(screen.getByRole("button", { name: "Left" }));
     fireEvent.click(

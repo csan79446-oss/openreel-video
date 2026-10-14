@@ -2944,6 +2944,11 @@ export const useProjectStore = create<ProjectState>()(
         const result = await actionExecutor.execute(action, project);
         if (result.success) {
           set({ project: { ...project } });
+          // Overlay actions (text/shape/svg/sticker) are project-authoritative;
+          // without this sync the TitleEngine that export rendering reads never
+          // sees them, so overlays added through raw actions show in the preview
+          // (project.textClips) but are missing from exported frames.
+          syncOverlayEnginesFromProject();
         }
         return result;
       },

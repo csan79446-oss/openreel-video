@@ -119,6 +119,57 @@ export function createTimelineItemSlice(
           duration,
         },
       });
+
+      if (placement.createdTrack && mediaItem.type === "video") {
+        const hasAudio =
+          mediaItem.metadata?.hasAudio !== false &&
+          (mediaItem.metadata?.channels ?? 1) > 0;
+        if (hasAudio) {
+          const audioTrackId = uuidv4();
+          actions.push({
+            type: "track/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              trackType: "audio",
+              trackId: audioTrackId,
+              mode: "standard",
+              name: "Audio",
+            },
+          });
+          actions.push({
+            type: "clip/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              clipId: uuidv4(),
+              trackId: audioTrackId,
+              mediaId,
+              startTime: placement.startTime,
+              duration,
+            },
+          });
+        }
+
+        const hasCaptionsTrack = project.timeline.tracks.some(
+          (t) => t.role === "captions" || t.name === "Captions" || t.name === "Subtitles",
+        );
+        if (!hasCaptionsTrack) {
+          actions.push({
+            type: "track/add",
+            id: uuidv4(),
+            timestamp: Date.now(),
+            params: {
+              trackId: uuidv4(),
+              trackType: "video",
+              mode: "standard",
+              role: "captions",
+              name: "Captions",
+            },
+          });
+        }
+      }
+
       return executePlacement(actions, "Place media");
     },
 

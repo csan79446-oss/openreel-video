@@ -464,7 +464,11 @@ export class TitleEngine {
         ? style.fontWeight.toString()
         : style.fontWeight;
 
-    ctx.font = `${style.fontStyle} ${fontWeight} ${style.fontSize}px "${style.fontFamily}"`;
+    const family = style.fontFamily?.includes(",")
+      ? style.fontFamily
+      : `"${style.fontFamily || "Inter"}"`;
+
+    ctx.font = `${style.fontStyle} ${fontWeight} ${style.fontSize}px ${family}`;
     ctx.fillStyle = style.color;
     ctx.textAlign = style.textAlign as CanvasTextAlign;
     ctx.textBaseline = "middle";

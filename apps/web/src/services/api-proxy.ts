@@ -16,6 +16,12 @@ const DIRECT_CONFIG = {
       "xi-api-key": key,
     }),
   },
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    authHeaders: (key: string): Record<string, string> => ({
+      "x-goog-api-key": key,
+    }),
+  },
   openai: {
     baseUrl: "https://api.openai.com/v1",
     authHeaders: (key: string): Record<string, string> => ({

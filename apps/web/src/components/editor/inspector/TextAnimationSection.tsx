@@ -253,16 +253,23 @@ const EasingSelector: React.FC<{
 
 interface TextAnimationSectionProps {
   clipId: string;
+  clipIds?: readonly string[];
 }
 
 export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
   clipId,
+  clipIds,
 }) => {
   const getTextClip = useProjectStore((state) => state.getTextClip);
   const applyTextAnimationPreset = useProjectStore(
     (state) => state.applyTextAnimationPreset,
   );
+  const beginHistoryGroup = useProjectStore((state) => state.beginHistoryGroup);
+  const endHistoryGroup = useProjectStore((state) => state.endHistoryGroup);
   useProjectStore((state) => state.project);
+
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const textClip = getTextClip(clipId);
 
@@ -274,42 +281,107 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
 
   const handlePresetChange = useCallback(
     (preset: TextAnimationPreset) => {
-      applyTextAnimationPreset(clipId, preset, inDuration, outDuration);
+      if (isBatch) beginHistoryGroup("Apply text animation preset to selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          applyTextAnimationPreset(targetId, preset, inDuration, outDuration);
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, applyTextAnimationPreset, inDuration, outDuration],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      applyTextAnimationPreset,
+      inDuration,
+      outDuration,
+    ],
   );
 
   const handleInDurationChange = useCallback(
     (newInDuration: number) => {
-      applyTextAnimationPreset(
-        clipId,
-        currentPreset,
-        newInDuration,
-        outDuration,
-      );
+      if (isBatch) beginHistoryGroup("Update text animation timing on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          applyTextAnimationPreset(
+            targetId,
+            currentPreset,
+            newInDuration,
+            outDuration,
+          );
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, applyTextAnimationPreset, currentPreset, outDuration],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      applyTextAnimationPreset,
+      currentPreset,
+      outDuration,
+    ],
   );
 
   const handleOutDurationChange = useCallback(
     (newOutDuration: number) => {
-      applyTextAnimationPreset(
-        clipId,
-        currentPreset,
-        inDuration,
-        newOutDuration,
-      );
+      if (isBatch) beginHistoryGroup("Update text animation timing on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          applyTextAnimationPreset(
+            targetId,
+            currentPreset,
+            inDuration,
+            newOutDuration,
+          );
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, applyTextAnimationPreset, currentPreset, inDuration],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      applyTextAnimationPreset,
+      currentPreset,
+      inDuration,
+    ],
   );
 
   const handleEasingChange = useCallback(
     (newEasing: string) => {
-      applyTextAnimationPreset(clipId, currentPreset, inDuration, outDuration, {
-        easing: newEasing as TextAnimationParams["easing"],
-      });
+      if (isBatch) beginHistoryGroup("Update text animation easing on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          applyTextAnimationPreset(
+            targetId,
+            currentPreset,
+            inDuration,
+            outDuration,
+            { easing: newEasing as TextAnimationParams["easing"] },
+          );
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, applyTextAnimationPreset, currentPreset, inDuration, outDuration],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      applyTextAnimationPreset,
+      currentPreset,
+      inDuration,
+      outDuration,
+    ],
   );
 
   if (!textClip) {
@@ -378,42 +450,42 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
       )}
 
       {currentPreset === "fade" && (
-        <FadeParams clipId={clipId} animation={textClip.animation} />
+        <FadeParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {(currentPreset === "slide-left" ||
         currentPreset === "slide-right" ||
         currentPreset === "slide-up" ||
         currentPreset === "slide-down") && (
-        <SlideParams clipId={clipId} animation={textClip.animation} />
+        <SlideParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "scale" && (
-        <ScaleParams clipId={clipId} animation={textClip.animation} />
+        <ScaleParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "bounce" && (
-        <BounceParams clipId={clipId} animation={textClip.animation} />
+        <BounceParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "rotate" && (
-        <RotateParams clipId={clipId} animation={textClip.animation} />
+        <RotateParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "wave" && (
-        <WaveParams clipId={clipId} animation={textClip.animation} />
+        <WaveParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "shake" && (
-        <ShakeParams clipId={clipId} animation={textClip.animation} />
+        <ShakeParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "pop" && (
-        <PopParams clipId={clipId} animation={textClip.animation} />
+        <PopParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
 
       {currentPreset === "glitch" && (
-        <GlitchParams clipId={clipId} animation={textClip.animation} />
+        <GlitchParams clipId={clipId} clipIds={targetClipIds} animation={textClip.animation} />
       )}
     </div>
   );
@@ -421,23 +493,34 @@ export const TextAnimationSection: React.FC<TextAnimationSectionProps> = ({
 
 const FadeParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const startOpacity = animation?.params?.fadeOpacity?.start ?? 0;
   const endOpacity = animation?.params?.fadeOpacity?.end ?? 1;
 
   const handleChange = (start: number, end: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "fade",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { fadeOpacity: { start, end } },
-    );
+    if (isBatch) beginHistoryGroup("Update fade settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "fade",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { fadeOpacity: { start, end } },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -469,22 +552,33 @@ const FadeParams: React.FC<{
 
 const SlideParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams; preset?: TextAnimationPreset };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const slideDistance = animation?.params?.slideDistance ?? 0.2;
 
   const handleChange = (distance: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      textClip.animation.preset,
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { slideDistance: distance },
-    );
+    if (isBatch) beginHistoryGroup("Update slide settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          textClip.animation.preset,
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { slideDistance: distance },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -507,23 +601,34 @@ const SlideParams: React.FC<{
 
 const ScaleParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const scaleFrom = animation?.params?.scaleFrom ?? 0;
   const scaleTo = animation?.params?.scaleTo ?? 1;
 
   const handleChange = (from: number, to: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "scale",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { scaleFrom: from, scaleTo: to },
-    );
+    if (isBatch) beginHistoryGroup("Update scale settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "scale",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { scaleFrom: from, scaleTo: to },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -555,23 +660,34 @@ const ScaleParams: React.FC<{
 
 const BounceParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const bounceHeight = animation?.params?.bounceHeight ?? 0.1;
   const bounceCount = animation?.params?.bounceCount ?? 3;
 
   const handleChange = (height: number, count: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "bounce",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { bounceHeight: height, bounceCount: count },
-    );
+    if (isBatch) beginHistoryGroup("Update bounce settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "bounce",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { bounceHeight: height, bounceCount: count },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -603,22 +719,33 @@ const BounceParams: React.FC<{
 
 const RotateParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const rotateAngle = animation?.params?.rotateAngle ?? 360;
 
   const handleChange = (angle: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "rotate",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { rotateAngle: angle },
-    );
+    if (isBatch) beginHistoryGroup("Update rotate settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "rotate",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { rotateAngle: angle },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -641,23 +768,34 @@ const RotateParams: React.FC<{
 
 const WaveParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const waveAmplitude = animation?.params?.waveAmplitude ?? 0.02;
   const waveFrequency = animation?.params?.waveFrequency ?? 2;
 
   const handleChange = (amplitude: number, frequency: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "wave",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { waveAmplitude: amplitude, waveFrequency: frequency },
-    );
+    if (isBatch) beginHistoryGroup("Update wave settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "wave",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { waveAmplitude: amplitude, waveFrequency: frequency },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -689,23 +827,34 @@ const WaveParams: React.FC<{
 
 const ShakeParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const shakeIntensity = animation?.params?.shakeIntensity ?? 0.01;
   const shakeSpeed = animation?.params?.shakeSpeed ?? 20;
 
   const handleChange = (intensity: number, speed: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "shake",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { shakeIntensity: intensity, shakeSpeed: speed },
-    );
+    if (isBatch) beginHistoryGroup("Update shake settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "shake",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { shakeIntensity: intensity, shakeSpeed: speed },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -737,22 +886,33 @@ const ShakeParams: React.FC<{
 
 const PopParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const popOvershoot = animation?.params?.popOvershoot ?? 1.2;
 
   const handleChange = (overshoot: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "pop",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { popOvershoot: overshoot },
-    );
+    if (isBatch) beginHistoryGroup("Update pop settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "pop",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { popOvershoot: overshoot },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (
@@ -775,23 +935,34 @@ const PopParams: React.FC<{
 
 const GlitchParams: React.FC<{
   clipId: string;
+  clipIds?: readonly string[];
   animation?: { params?: TextAnimationParams };
-}> = ({ clipId, animation }) => {
-  const { applyTextAnimationPreset, getTextClip } = useProjectStore();
+}> = ({ clipId, clipIds, animation }) => {
+  const { applyTextAnimationPreset, getTextClip, beginHistoryGroup, endHistoryGroup } =
+    useProjectStore();
   const textClip = getTextClip(clipId);
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const glitchIntensity = animation?.params?.glitchIntensity ?? 0.02;
   const glitchSpeed = animation?.params?.glitchSpeed ?? 10;
 
   const handleChange = (intensity: number, speed: number) => {
     if (!textClip?.animation) return;
-    applyTextAnimationPreset(
-      clipId,
-      "glitch",
-      textClip.animation.inDuration,
-      textClip.animation.outDuration,
-      { glitchIntensity: intensity, glitchSpeed: speed },
-    );
+    if (isBatch) beginHistoryGroup("Update glitch settings on selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTextAnimationPreset(
+          targetId,
+          "glitch",
+          textClip.animation.inDuration,
+          textClip.animation.outDuration,
+          { glitchIntensity: intensity, glitchSpeed: speed },
+        );
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   };
 
   return (

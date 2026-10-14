@@ -189,10 +189,48 @@ export function useElevenLabsApi(options: UseElevenLabsApiOptions): UseElevenLab
   }, [elevenLabsModel, isDesktop]);
 
   const enhanceViaLlm = useCallback(async (inputText: string, signal?: AbortSignal): Promise<string> => {
+    // If Gemini key is configured, use Gemini 3.8 Flash to enhance the text
+    if (configuredServices.includes("gemini")) {
+      if (!isSessionUnlocked()) {
+        throw new Error("Session locked. Unlock in Settings > API Keys first.");
+      }
+      const geminiKey = isDesktop ? "" : (await getSecret("gemini")) ?? "";
+      if (geminiKey || isDesktop) {
+        const response = await apiFetch(
+          "gemini",
+          "/models/gemini-3.8-flash:generateContent",
+          geminiKey,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: `${ENHANCE_SYSTEM_PROMPT}\n\nText to enhance for speech:\n${inputText}`,
+                    },
+                  ],
+                },
+              ],
+            }),
+            signal,
+          },
+        );
+
+        if (response.ok) {
+          const result = await response.json();
+          const candidate = result.candidates?.[0];
+          const enhancedText = candidate?.content?.parts?.[0]?.text;
+          if (enhancedText) return enhancedText.trim();
+        }
+      }
+    }
+
     const llmProvider = defaultLlmProvider;
     const selectedModel = llmModel.trim();
     if (!llmProvider || !llmBaseUrl.trim() || !selectedModel) {
-      throw new Error("Configure an AI endpoint and model before using text enhancement.");
+      throw new Error("Enhance Text requires an AI endpoint. You can turn off 'Enhance for TTS' to generate speech directly, or configure an AI format in Settings.");
     }
     const compatibleKeyConfigured = configuredServices.includes(llmProvider);
 

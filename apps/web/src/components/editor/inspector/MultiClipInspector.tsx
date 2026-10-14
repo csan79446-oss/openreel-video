@@ -26,6 +26,12 @@ import { getTimelineSelectionItem } from "../../../utils/timeline-item-actions";
 import { InspectorSection } from "./shell/InspectorSection";
 import { NestedSequenceSection } from "./NestedSequenceSection";
 import { TextSection } from "./TextSection";
+import { KeyframesSection } from "./KeyframesSection";
+import { ClipTransitionSection } from "./ClipTransitionSection";
+import { MotionPathSection } from "./MotionPathSection";
+import { EmphasisAnimationSection } from "./EmphasisAnimationSection";
+import { TextAnimationSection } from "./TextAnimationSection";
+import { BehindSubjectSection } from "./BehindSubjectSection";
 import {
   cloneVideoEffectStackWithFreshIds,
   copyVideoEffectStack,
@@ -170,6 +176,9 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
   ).length;
   const selectedTextClipIds = selectedEntries
     .filter((entry) => entry.kind === "text")
+    .map((entry) => entry.id);
+  const selectedTimelineClipIds = selectedEntries
+    .filter((entry) => entry.kind === "timeline")
     .map((entry) => entry.id);
   const averageScale = average(
     visualEntries.map((entry) => (entry.transform.scale.x + entry.transform.scale.y) / 2),
@@ -567,6 +576,84 @@ export function MultiClipInspector({ clipIds }: MultiClipInspectorProps): JSX.El
               />
             </div>
           </div>
+        </InspectorSection>
+      ) : null}
+
+      {visualEntries.length > 0 ? (
+        <InspectorSection
+          title="Keyframes"
+          sectionId="batch-keyframes"
+          defaultOpen
+        >
+          <KeyframesSection
+            clipId={visualEntries[0].id}
+            clipIds={visualEntries.map((entry) => entry.id)}
+          />
+        </InspectorSection>
+      ) : null}
+
+      {timelineEntryCount > 0 ? (
+        <InspectorSection
+          title="Clip Transitions"
+          sectionId="batch-clip-transitions"
+          defaultOpen
+        >
+          <ClipTransitionSection
+            clipId={selectedTimelineClipIds[0] ?? clipIds[0] ?? ""}
+            clipIds={selectedTimelineClipIds}
+          />
+        </InspectorSection>
+      ) : null}
+
+      {visualEntries.length > 0 ? (
+        <InspectorSection
+          title="Motion Path"
+          sectionId="batch-motion-path"
+          defaultOpen
+        >
+          <MotionPathSection
+            clipId={visualEntries[0].id}
+            clipIds={visualEntries.map((entry) => entry.id)}
+          />
+        </InspectorSection>
+      ) : null}
+
+      {visualEntries.length > 0 ? (
+        <InspectorSection
+          title="Emphasis Animation"
+          sectionId="batch-emphasis-animation"
+          defaultOpen
+        >
+          <EmphasisAnimationSection
+            clipId={visualEntries[0].id}
+            clipIds={visualEntries.map((entry) => entry.id)}
+          />
+        </InspectorSection>
+      ) : null}
+
+      {selectedTextClipIds.length > 0 ? (
+        <InspectorSection
+          title="Text Animation"
+          sectionId="batch-text-animation"
+          defaultOpen
+        >
+          <TextAnimationSection
+            clipId={selectedTextClipIds[0]}
+            clipIds={selectedTextClipIds}
+          />
+        </InspectorSection>
+      ) : null}
+
+      {selectedTextClipIds.length > 0 ? (
+        <InspectorSection
+          title="Text Behind Subject"
+          sectionId="batch-text-behind-subject"
+          defaultOpen
+        >
+          <BehindSubjectSection
+            clipId={selectedTextClipIds[0]}
+            clipIds={selectedTextClipIds}
+          />
         </InspectorSection>
       ) : null}
 

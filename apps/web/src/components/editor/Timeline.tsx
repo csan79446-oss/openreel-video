@@ -901,10 +901,19 @@ export const Timeline: React.FC = () => {
         onClick: () => addTrack("video", undefined, { mode: "standard" }),
       },
       {
+        label: "Audio",
+        icon: <Music size={16} className="text-clip-audio" aria-hidden />,
+        onClick: () =>
+          addTrack("audio", undefined, {
+            mode: "standard",
+            name: "Audio",
+          }),
+      },
+      {
         label: "Dialogue",
         icon: <Music size={16} className="text-clip-audio" aria-hidden />,
         onClick: () =>
-          addTrack("video", undefined, {
+          addTrack("audio", undefined, {
             mode: "standard",
             role: "dialogue",
             name: "Dialogue",
@@ -914,14 +923,14 @@ export const Timeline: React.FC = () => {
         label: "Music",
         icon: <Music size={16} className="text-clip-audio" aria-hidden />,
         onClick: () =>
-          addTrack("video", undefined, {
+          addTrack("audio", undefined, {
             mode: "standard",
             role: "music",
             name: "Music",
           }),
       },
       {
-        label: "Captions",
+        label: "Captions / Subtitles",
         icon: <Type size={16} className="text-clip-text" aria-hidden />,
         onClick: () =>
           addTrack("video", undefined, {

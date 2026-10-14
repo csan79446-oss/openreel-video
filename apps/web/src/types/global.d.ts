@@ -230,6 +230,7 @@ declare global {
         fetch(
           service:
             | "elevenlabs"
+            | "gemini"
             | "openai"
             | "anthropic"
             | "openai-compatible"

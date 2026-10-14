@@ -399,6 +399,7 @@ const KeyframeItem: React.FC<{
 
 interface KeyframesSectionProps {
   clipId: string;
+  clipIds?: readonly string[];
 }
 
 /**
@@ -409,34 +410,49 @@ interface KeyframesSectionProps {
  */
 export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   clipId,
+  clipIds,
 }) => {
-  const { getClip, updateClipKeyframes, project } = useProjectStore();
+  const {
+    getClip,
+    updateClipKeyframes,
+    beginHistoryGroup,
+    endHistoryGroup,
+    project,
+  } = useProjectStore();
   const playheadPosition = useTimelineStore((state) => state.playheadPosition);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
 
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
+
   const [selectedProperty, setSelectedProperty] = useState<string | null>(null);
 
-  const clip = useMemo(() => {
-    const timelineClip = getClip(clipId);
-    if (timelineClip) return timelineClip;
+  const resolveClipFor = useCallback(
+    (targetId: string) => {
+      const timelineClip = getClip(targetId);
+      if (timelineClip) return timelineClip;
 
-    const graphicsEngine = getGraphicsEngine();
-    const svgClip = graphicsEngine?.getSVGClip(clipId);
-    if (svgClip) return svgClip;
+      const graphicsEngine = getGraphicsEngine();
+      const svgClip = graphicsEngine?.getSVGClip(targetId);
+      if (svgClip) return svgClip;
 
-    const shapeClip = graphicsEngine?.getShapeClip(clipId);
-    if (shapeClip) return shapeClip;
+      const shapeClip = graphicsEngine?.getShapeClip(targetId);
+      if (shapeClip) return shapeClip;
 
-    const stickerClip = graphicsEngine?.getStickerClip(clipId);
-    if (stickerClip) return stickerClip;
+      const stickerClip = graphicsEngine?.getStickerClip(targetId);
+      if (stickerClip) return stickerClip;
 
-    const titleEngine = getTitleEngine();
-    const textClip = titleEngine?.getTextClip(clipId);
-    if (textClip) return textClip;
+      const titleEngine = getTitleEngine();
+      const textClip = titleEngine?.getTextClip(targetId);
+      if (textClip) return textClip;
 
-    return undefined;
-  }, [clipId, getClip, getGraphicsEngine, getTitleEngine, project.modifiedAt]);
+      return undefined;
+    },
+    [getClip, getGraphicsEngine, getTitleEngine, project.modifiedAt],
+  );
+
+  const clip = resolveClipFor(clipId);
   const keyframes = clip?.keyframes || [];
 
   const propertiesWithKeyframes = useMemo(() => {
@@ -471,63 +487,120 @@ export const KeyframesSection: React.FC<KeyframesSectionProps> = ({
   }, [selectedProperty, propertyKeyframes, playheadPosition]);
 
   const handleAddKeyframe = useCallback(() => {
-    if (!selectedProperty || !clip) return;
+    if (!selectedProperty) return;
 
-    const newKeyframe = keyframeEngine.addKeyframe(
-      clipId,
-      selectedProperty,
-      playheadPosition,
-      currentValue,
-      "linear",
-    );
+    if (isBatch) beginHistoryGroup("Add keyframe to selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        const targetClip = resolveClipFor(targetId);
+        if (!targetClip) continue;
 
-    const updatedKeyframes = [...keyframes, newKeyframe].sort(
-      (a, b) => a.time - b.time,
-    );
-    updateClipKeyframes(clipId, updatedKeyframes);
+        const newKeyframe = keyframeEngine.addKeyframe(
+          targetId,
+          selectedProperty,
+          playheadPosition,
+          currentValue,
+          "linear",
+        );
+
+        const updatedKeyframes = [...(targetClip.keyframes || []), newKeyframe].sort(
+          (a, b) => a.time - b.time,
+        );
+        updateClipKeyframes(targetId, updatedKeyframes);
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
+    }
   }, [
-    clipId,
-    clip,
+    isBatch,
+    beginHistoryGroup,
+    endHistoryGroup,
+    targetClipIds,
+    resolveClipFor,
     selectedProperty,
     playheadPosition,
     currentValue,
-    keyframes,
     updateClipKeyframes,
   ]);
 
   const handleUpdateKeyframe = useCallback(
     (keyframeId: string, updates: Partial<Omit<Keyframe, "id">>) => {
-      const updatedKeyframes = keyframeEngine.updateKeyframe(
-        keyframes,
-        keyframeId,
-        updates,
-      );
-      updateClipKeyframes(clipId, updatedKeyframes);
+      if (isBatch) beginHistoryGroup("Update keyframes on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          const targetKeyframes = resolveClipFor(targetId)?.keyframes || [];
+          const updatedKeyframes = keyframeEngine.updateKeyframe(
+            targetKeyframes,
+            keyframeId,
+            updates,
+          );
+          updateClipKeyframes(targetId, updatedKeyframes);
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, keyframes, updateClipKeyframes],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      resolveClipFor,
+      updateClipKeyframes,
+    ],
   );
 
   const handleDeleteKeyframe = useCallback(
     (keyframeId: string) => {
-      const updatedKeyframes = keyframeEngine.removeKeyframe(
-        keyframes,
-        keyframeId,
-      );
-      updateClipKeyframes(clipId, updatedKeyframes);
+      if (isBatch) beginHistoryGroup("Delete keyframes on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          const targetKeyframes = resolveClipFor(targetId)?.keyframes || [];
+          const updatedKeyframes = keyframeEngine.removeKeyframe(
+            targetKeyframes,
+            keyframeId,
+          );
+          updateClipKeyframes(targetId, updatedKeyframes);
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, keyframes, updateClipKeyframes],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      resolveClipFor,
+      updateClipKeyframes,
+    ],
   );
 
   const handleEasingChange = useCallback(
     (keyframeId: string, easing: EasingName) => {
-      const updatedKeyframes = keyframeEngine.updateKeyframe(
-        keyframes,
-        keyframeId,
-        { easing: easing as EasingType },
-      );
-      updateClipKeyframes(clipId, updatedKeyframes);
+      if (isBatch) beginHistoryGroup("Update keyframe easing on selected clips");
+      try {
+        for (const targetId of targetClipIds) {
+          const targetKeyframes = resolveClipFor(targetId)?.keyframes || [];
+          const updatedKeyframes = keyframeEngine.updateKeyframe(
+            targetKeyframes,
+            keyframeId,
+            { easing: easing as EasingType },
+          );
+          updateClipKeyframes(targetId, updatedKeyframes);
+        }
+      } finally {
+        if (isBatch) endHistoryGroup();
+      }
     },
-    [clipId, keyframes, updateClipKeyframes],
+    [
+      isBatch,
+      beginHistoryGroup,
+      endHistoryGroup,
+      targetClipIds,
+      resolveClipFor,
+      updateClipKeyframes,
+    ],
   );
 
   if (!clip) {

@@ -1509,6 +1509,21 @@ export const renderSubtitleToCanvas = (
   }
 };
 
+const formatCanvasSubtitleFont = (fontFamily?: string): string => {
+  const KHMER_STACK =
+    '"Khmer OS", "Khmer OS System", "Khmer OS Battambang", "Khmer OS Siemreap", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", Arial, sans-serif';
+  if (!fontFamily) return KHMER_STACK;
+  const requested = fontFamily.trim();
+  if (
+    requested.includes("Khmer") ||
+    requested.includes("Kantumruy") ||
+    requested.includes("Battambang")
+  ) {
+    return requested;
+  }
+  return `${requested}, ${KHMER_STACK}`;
+};
+
 const renderStaticSubtitle = (
   ctx: CanvasRenderingContext2D,
   subtitle: Subtitle,
@@ -1520,12 +1535,12 @@ const renderStaticSubtitle = (
   ctx.save();
 
   const fontSize = style?.fontSize || 24;
-  const fontFamily = style?.fontFamily || "Inter";
+  const fontFamily = style?.fontFamily;
   const color = style?.color || "#ffffff";
   const backgroundColor = style?.backgroundColor || "rgba(0, 0, 0, 0.7)";
   const position = style?.position || "bottom";
 
-  ctx.font = `bold ${fontSize}px "${fontFamily}"`;
+  ctx.font = `bold ${fontSize}px ${formatCanvasSubtitleFont(fontFamily)}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
@@ -1583,12 +1598,12 @@ const renderAnimatedSubtitle = (
 
   const style = subtitle.style;
   const fontSize = style?.fontSize || 24;
-  const fontFamily = style?.fontFamily || "Inter";
+  const fontFamily = style?.fontFamily;
   const baseColor = style?.color || "#ffffff";
   const backgroundColor = style?.backgroundColor || "rgba(0, 0, 0, 0.7)";
   const position = style?.position || "bottom";
 
-  ctx.font = `bold ${fontSize}px "${fontFamily}"`;
+  ctx.font = `bold ${fontSize}px ${formatCanvasSubtitleFont(fontFamily)}`;
   ctx.textBaseline = "middle";
 
   const lineHeight = fontSize * 1.3;

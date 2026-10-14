@@ -17,16 +17,20 @@ import {
 
 interface MotionPathSectionProps {
   clipId: string;
+  clipIds?: readonly string[];
 }
 
 export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   clipId,
+  clipIds,
 }) => {
   const { getClip, project } = useProjectStore();
   const { motionPathMode, motionPathClipId, setMotionPathMode } = useUIStore();
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const [forceUpdate, setForceUpdate] = useState(0);
+
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
 
   const clip = useMemo(() => {
     const timelineClip = getClip(clipId);
@@ -59,66 +63,74 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
 
   const handleEnableToggle = useCallback(
     (enabled: boolean) => {
-      if (enabled) {
-        const existingPath = gsapEngine.getMotionPath(clipId);
-        if (!existingPath) {
-          const defaultPoints: GSAPMotionPathPoint[] = [
-            { x: 0, y: 0, time: 0 },
-            { x: 100, y: 0, time: 1 },
-          ];
-          gsapEngine.setMotionPath(clipId, {
-            enabled: true,
-            pathType: "bezier",
-            points: generateDefaultControlPoints(defaultPoints),
-            showPath: true,
-            autoOrient: false,
-            alignOrigin: [0.5, 0.5],
-          });
+      for (const targetId of targetClipIds) {
+        if (enabled) {
+          const existingPath = gsapEngine.getMotionPath(targetId);
+          if (!existingPath) {
+            const defaultPoints: GSAPMotionPathPoint[] = [
+              { x: 0, y: 0, time: 0 },
+              { x: 100, y: 0, time: 1 },
+            ];
+            gsapEngine.setMotionPath(targetId, {
+              enabled: true,
+              pathType: "bezier",
+              points: generateDefaultControlPoints(defaultPoints),
+              showPath: true,
+              autoOrient: false,
+              alignOrigin: [0.5, 0.5],
+            });
+          } else {
+            gsapEngine.setMotionPath(targetId, { ...existingPath, enabled: true });
+          }
         } else {
-          gsapEngine.setMotionPath(clipId, { ...existingPath, enabled: true });
-        }
-      } else {
-        const existingPath = gsapEngine.getMotionPath(clipId);
-        if (existingPath) {
-          gsapEngine.setMotionPath(clipId, { ...existingPath, enabled: false });
+          const existingPath = gsapEngine.getMotionPath(targetId);
+          if (existingPath) {
+            gsapEngine.setMotionPath(targetId, { ...existingPath, enabled: false });
+          }
         }
       }
       setForceUpdate((v) => v + 1);
     },
-    [clipId, gsapEngine]
+    [targetClipIds, gsapEngine],
   );
 
   const handleShowPathToggle = useCallback(
     (show: boolean) => {
-      const path = gsapEngine.getMotionPath(clipId);
-      if (path) {
-        gsapEngine.setMotionPath(clipId, { ...path, showPath: show });
-        setForceUpdate((v) => v + 1);
+      for (const targetId of targetClipIds) {
+        const path = gsapEngine.getMotionPath(targetId);
+        if (path) {
+          gsapEngine.setMotionPath(targetId, { ...path, showPath: show });
+        }
       }
+      setForceUpdate((v) => v + 1);
     },
-    [clipId, gsapEngine]
+    [targetClipIds, gsapEngine],
   );
 
   const handleAutoOrientToggle = useCallback(
     (autoOrient: boolean) => {
-      const path = gsapEngine.getMotionPath(clipId);
-      if (path) {
-        gsapEngine.setMotionPath(clipId, { ...path, autoOrient });
-        setForceUpdate((v) => v + 1);
+      for (const targetId of targetClipIds) {
+        const path = gsapEngine.getMotionPath(targetId);
+        if (path) {
+          gsapEngine.setMotionPath(targetId, { ...path, autoOrient });
+        }
       }
+      setForceUpdate((v) => v + 1);
     },
-    [clipId, gsapEngine]
+    [targetClipIds, gsapEngine],
   );
 
   const handlePathTypeChange = useCallback(
     (pathType: "linear" | "bezier" | "catmull-rom") => {
-      const path = gsapEngine.getMotionPath(clipId);
-      if (path) {
-        gsapEngine.setMotionPath(clipId, { ...path, pathType });
-        setForceUpdate((v) => v + 1);
+      for (const targetId of targetClipIds) {
+        const path = gsapEngine.getMotionPath(targetId);
+        if (path) {
+          gsapEngine.setMotionPath(targetId, { ...path, pathType });
+        }
       }
+      setForceUpdate((v) => v + 1);
     },
-    [clipId, gsapEngine]
+    [targetClipIds, gsapEngine],
   );
 
   const handleEditMode = useCallback(() => {
@@ -130,25 +142,29 @@ export const MotionPathSection: React.FC<MotionPathSectionProps> = ({
   }, [isEditing, clipId, setMotionPathMode]);
 
   const handleAddPoint = useCallback(() => {
-    const path = gsapEngine.getMotionPath(clipId);
-    if (!path) return;
+    for (const targetId of targetClipIds) {
+      const path = gsapEngine.getMotionPath(targetId);
+      if (!path) continue;
 
-    const lastPoint = path.points[path.points.length - 1];
-    const newPoint: GSAPMotionPathPoint = {
-      x: lastPoint.x + 50,
-      y: lastPoint.y,
-      time: Math.min(1, lastPoint.time + 0.2),
-    };
+      const lastPoint = path.points[path.points.length - 1];
+      const newPoint: GSAPMotionPathPoint = {
+        x: lastPoint.x + 50,
+        y: lastPoint.y,
+        time: Math.min(1, lastPoint.time + 0.2),
+      };
 
-    gsapEngine.addGSAPMotionPathPoint(clipId, newPoint);
+      gsapEngine.addGSAPMotionPathPoint(targetId, newPoint);
+    }
     setForceUpdate((v) => v + 1);
-  }, [clipId, gsapEngine]);
+  }, [targetClipIds, gsapEngine]);
 
   const handleClearPath = useCallback(() => {
-    gsapEngine.removeMotionPath(clipId);
+    for (const targetId of targetClipIds) {
+      gsapEngine.removeMotionPath(targetId);
+    }
     setMotionPathMode(false);
     setForceUpdate((v) => v + 1);
-  }, [clipId, gsapEngine, setMotionPathMode]);
+  }, [targetClipIds, gsapEngine, setMotionPathMode]);
 
   if (!clip) {
     return (

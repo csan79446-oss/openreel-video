@@ -9,6 +9,7 @@ import { ToolcraftTextInputControl as TextInput } from "@openreel/ui";
 import { useSettingsStore, SERVICE_REGISTRY, type TtsProvider, type LlmProvider, type AggregatorProvider } from "../../../stores/settings-store";
 import { useProjectStore } from "../../../stores/project-store";
 import { EDITING_FRAME_RATE_OPTIONS } from "../editing-frame-rate";
+import { GEMINI_VOICES } from "../inspector/hooks/useGeminiTtsApi";
 
 const ASPECT_PRESETS: Array<{ label: string; width: number; height: number }> = [
   { label: "16:9 Landscape (1080p)", width: 1920, height: 1080 },
@@ -38,6 +39,7 @@ export const GeneralPanel: React.FC = () => {
     autoSave,
     autoSaveInterval,
     defaultTtsProvider,
+    geminiVoice,
     defaultLlmProvider,
     llmBaseUrl,
     llmModel,
@@ -46,6 +48,7 @@ export const GeneralPanel: React.FC = () => {
     setAutoSave,
     setAutoSaveInterval,
     setDefaultTtsProvider,
+    setGeminiVoice,
     setDefaultLlmProvider,
     setLlmBaseUrl,
     setLlmModel,
@@ -91,7 +94,9 @@ export const GeneralPanel: React.FC = () => {
     }
   }, [draftWidth, draftHeight, applyDimensions]);
 
-  const ttsProviders = SERVICE_REGISTRY.filter((s) => s.id === "elevenlabs");
+  const ttsProviders = SERVICE_REGISTRY.filter(
+    (s) => s.id === "elevenlabs" || s.id === "gemini",
+  );
 
   const llmProviders = SERVICE_REGISTRY.filter(
     (s) => s.id === "openai-compatible" || s.id === "anthropic-compatible",
@@ -337,6 +342,31 @@ export const GeneralPanel: React.FC = () => {
               options={ttsProviders.map((s) => ({ label: s.label, value: s.id }))}
             />
           </div>
+
+          {defaultTtsProvider === "gemini" && (
+            <div className="flex items-center justify-between rounded-lg border border-border bg-background-tertiary p-2.5">
+              <div>
+                <Text type="supporting" color="primary" className="text-xs font-medium">
+                  Default Gemini Voice
+                </Text>
+                <Text type="supporting" color="secondary" className="mt-0.5 block text-[10px]">
+                  Choose your preferred voice for Gemini text-to-speech.
+                </Text>
+              </div>
+              <Selector
+                label="Default Gemini Voice"
+                isLabelHidden
+                size="sm"
+                width={160}
+                value={geminiVoice}
+                onChange={(value) => setGeminiVoice(value)}
+                options={GEMINI_VOICES.map((v) => ({
+                  label: `${v.name} (${v.gender === "female" ? "Female" : "Male"})`,
+                  value: v.id,
+                }))}
+              />
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <Text type="supporting" color="secondary" className="text-sm">

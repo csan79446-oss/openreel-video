@@ -68,6 +68,21 @@ export function getVisibleTrackRenderOrder(
     .reverse();
 }
 
+/**
+ * Tracks that hold subtitle/caption cues. Consolidated captions are text clips
+ * on these tracks, and they must burn into exported frames above every media
+ * layer — the same compositing contract as `timeline.subtitles` and the
+ * preview's playback overlay pass — regardless of where the track sits in the
+ * layer stack.
+ */
+export function isCaptionsTrack(track: Track): boolean {
+  return (
+    track.role === "captions" ||
+    track.name === "Captions" ||
+    track.name === "Subtitles"
+  );
+}
+
 const VISUAL_ONLY_CAPABILITIES: TimelineItemCapabilities = {
   visual: true,
   audio: false,

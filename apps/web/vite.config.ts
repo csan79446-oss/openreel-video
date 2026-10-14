@@ -65,6 +65,16 @@ export default defineConfig({
       "Cross-Origin-Opener-Policy": "same-origin",
       "Cross-Origin-Embedder-Policy": "require-corp",
     },
+    proxy: {
+      "/proxy/google-tts": {
+        target: "https://translate.google.com",
+        changeOrigin: true,
+        rewrite: (p) => p.replace(/^\/proxy\/google-tts/, ""),
+        headers: {
+          "User-Agent": "Mozilla/5.0",
+        },
+      },
+    },
   },
   preview: {
     headers: {

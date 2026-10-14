@@ -14,7 +14,32 @@ interface StoredFontRecord {
 
 const customFonts: string[] = [];
 
+export const KHMER_FONTS = [
+  "Khmer OS",
+  "Khmer OS Battambang",
+  "Khmer OS Siemreap",
+  "Khmer OS System",
+  "Khmer OS Muol Light",
+  "Kantumruy Pro",
+  "Battambang",
+  "Siemreap",
+  "Noto Sans Khmer",
+  "Noto Serif Khmer",
+  "Moul",
+  "Koulen",
+  "Bayon",
+  "Dangrek",
+  "Fasthand",
+  "Freehand",
+  "Preahvihear",
+  "Nokora",
+  "Content",
+] as const;
+
 export const FONT_CATEGORIES = {
+  "Khmer Unicode (ពុម្ពអក្សរខ្មែរ)": [
+    ...KHMER_FONTS,
+  ],
   Popular: [
     "Inter",
     "Poppins",

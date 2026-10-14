@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   Mic,
   Loader2,
@@ -6,6 +6,8 @@ import {
   Settings,
   Sparkles,
   AlertTriangle,
+  Radio,
+  Bot,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftCard as Card } from "@openreel/ui";
@@ -15,14 +17,20 @@ import { ToolcraftTextAreaControl } from "@openreel/ui";
 import { MockToggle } from "./shell/InspectorControls";
 import { useSettingsStore } from "../../../stores/settings-store";
 import { useElevenLabsApi } from "./hooks/useElevenLabsApi";
+import { useGeminiTtsApi, GEMINI_VOICES } from "./hooks/useGeminiTtsApi";
 import { useTtsActions } from "./hooks/useTtsActions";
 import { VoiceBrowser } from "./VoiceBrowser";
+import { GeminiVoiceSelector } from "./GeminiVoiceSelector";
 import { ModelSelector } from "./ModelSelector";
 import { EnhancedTextPreview } from "./EnhancedTextPreview";
 import { AudioResult } from "./AudioResult";
 
 export const TextToSpeechPanel: React.FC = () => {
   const {
+    defaultTtsProvider,
+    setDefaultTtsProvider,
+    geminiVoice,
+    setGeminiVoice,
     defaultLlmProvider,
     llmBaseUrl,
     llmModel,
@@ -34,6 +42,8 @@ export const TextToSpeechPanel: React.FC = () => {
   } = useSettingsStore();
 
   const hasElevenLabsKey = configuredServices.includes("elevenlabs");
+  const hasGeminiKey = configuredServices.includes("gemini");
+  const hasActiveKey = defaultTtsProvider === "gemini" ? hasGeminiKey : hasElevenLabsKey;
 
   const [text, setText] = useState("");
   const [selectedVoice, setSelectedVoice] = useState<string>(
@@ -59,6 +69,18 @@ export const TextToSpeechPanel: React.FC = () => {
     llmModel,
   });
 
+  const { generateWithGemini } = useGeminiTtsApi();
+
+  const activeGenerator = useCallback(
+    async (inputText: string, voiceId: string, signal?: AbortSignal): Promise<Blob> => {
+      if (defaultTtsProvider === "gemini") {
+        return generateWithGemini(inputText, geminiVoice, signal);
+      }
+      return generateWithElevenLabs(inputText, voiceId, signal);
+    },
+    [defaultTtsProvider, geminiVoice, generateWithGemini, generateWithElevenLabs],
+  );
+
   const {
     isGenerating,
     isPlaying,
@@ -76,13 +98,13 @@ export const TextToSpeechPanel: React.FC = () => {
     addToTimeline,
     downloadAudio,
   } = useTtsActions({
-    selectedVoice,
+    selectedVoice: defaultTtsProvider === "gemini" ? geminiVoice : selectedVoice,
     text,
     enhanceText,
     enhancedPreview,
     allVoices,
     favoriteVoices,
-    generateWithElevenLabs,
+    generateWithElevenLabs: activeGenerator,
     enhanceViaLlm,
     setText,
     setError,
@@ -90,10 +112,19 @@ export const TextToSpeechPanel: React.FC = () => {
   });
 
   const getSelectedModelName = (): string => {
+    if (defaultTtsProvider === "gemini") return "Gemini 3.8 Flash Audio";
     const model = allModels.find((m) => m.model_id === elevenLabsModel);
     if (model) return model.name;
     return elevenLabsModel;
   };
+
+  const currentVoiceName = useMemo(() => {
+    if (defaultTtsProvider === "gemini") {
+      const match = GEMINI_VOICES.find((v) => v.id === geminiVoice);
+      return match ? `Gemini (${match.name})` : `Gemini (${geminiVoice})`;
+    }
+    return getSelectedVoiceName();
+  }, [defaultTtsProvider, geminiVoice, getSelectedVoiceName]);
 
   const charCount = text.length;
   const maxChars = 5000;
@@ -102,6 +133,7 @@ export const TextToSpeechPanel: React.FC = () => {
     <div className="space-y-3 w-full min-w-0 max-w-full">
       <audio ref={audioRef as React.RefObject<HTMLAudioElement>} onEnded={handleAudioEnded} className="hidden" />
 
+      {/* Header with settings trigger */}
       <Card
         variant="green"
         padding={2}
@@ -111,10 +143,12 @@ export const TextToSpeechPanel: React.FC = () => {
           <Mic size={16} className="text-primary" aria-hidden />
           <div className="flex flex-col gap-0.5 min-w-0">
             <Text type="body" color="primary" weight="bold" display="block" className="text-[11px]">
-              Text to Speech
+              AI Voice & Text to Speech
             </Text>
             <Text type="supporting" color="secondary" display="block" className="text-[9px]">
-              User-keyed ElevenLabs voice generation
+              {defaultTtsProvider === "gemini"
+                ? "Google Gemini 3.8 Flash Audio (Khmer/Multilingual)"
+                : "ElevenLabs Voice Generation"}
             </Text>
           </div>
         </div>
@@ -128,27 +162,82 @@ export const TextToSpeechPanel: React.FC = () => {
         />
       </Card>
 
-      {!hasElevenLabsKey && (
+      {/* Provider Switcher: ElevenLabs vs Gemini TTS */}
+      <div className="space-y-1">
+        <Text type="supporting" color="secondary" weight="bold" className="text-[10px] uppercase">
+          TTS Provider (ជ្រើសរើស AI Voice Engine)
+        </Text>
+        <div className="grid grid-cols-2 gap-1.5 p-1 rounded-lg bg-bg-2 border border-border">
+          <button
+            type="button"
+            onClick={() => {
+              setDefaultTtsProvider("elevenlabs");
+              setError(null);
+            }}
+            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[11px] font-medium transition-colors ${
+              defaultTtsProvider === "elevenlabs"
+                ? "bg-primary text-white shadow-sm"
+                : "text-fg-2 hover:text-fg hover:bg-bg-3"
+            }`}
+          >
+            <Radio size={12} className={defaultTtsProvider === "elevenlabs" ? "text-white" : "text-fg-muted"} />
+            <span>ElevenLabs</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDefaultTtsProvider("gemini");
+              setError(null);
+            }}
+            className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[11px] font-medium transition-colors ${
+              defaultTtsProvider === "gemini"
+                ? "bg-primary text-white shadow-sm"
+                : "text-fg-2 hover:text-fg hover:bg-bg-3"
+            }`}
+          >
+            <Bot size={12} className={defaultTtsProvider === "gemini" ? "text-white" : "text-fg-muted"} />
+            <span>Gemini TTS</span>
+          </button>
+        </div>
+      </div>
+
+      {/* API Key Notices */}
+      {defaultTtsProvider === "elevenlabs" && !hasElevenLabsKey && (
         <Card variant="yellow" padding={2} className="border border-amber-500/30">
           <Text type="supporting" className="text-[10px] text-amber-400">
-            Add your ElevenLabs API key to enable speech generation. OpenReel no longer hosts a speech server.
+            Add your ElevenLabs API key in Settings &gt; API Keys to enable ElevenLabs voice generation.
           </Text>
         </Card>
       )}
 
-      {hasElevenLabsKey && (
+      {defaultTtsProvider === "gemini" && !hasGeminiKey && (
+        <Card variant="yellow" padding={2} className="border border-amber-500/30">
+          <Text type="supporting" className="text-[10px] text-amber-400">
+            Add your Google Gemini (AI Studio) API key in Settings &gt; API Keys to generate speech with Gemini TTS.
+          </Text>
+        </Card>
+      )}
+
+      {/* Provider-specific selectors */}
+      {defaultTtsProvider === "elevenlabs" && hasElevenLabsKey && (
         <ModelSelector allModels={allModels} isLoadingModels={isLoadingModels} />
       )}
 
+      {/* Text input area */}
       <div className="space-y-2">
         <ToolcraftTextAreaControl
-          label="Text"
+          label="Text to Speak (អត្ថបទនិយាយ)"
           value={text}
           onChange={(value) => {
             setText(value);
             setEnhancedPreview(null);
           }}
-          placeholder="Enter the text you want to convert to speech..."
+          placeholder={
+            defaultTtsProvider === "gemini"
+              ? "វាយ ឬ paste អត្ថបទនៅទីនេះ (គាំទ្រទាំងភាសាខ្មែរ និងអង់គ្លេស)..."
+              : "Enter the text you want to convert to speech..."
+          }
           maxLength={maxChars}
           rows={4}
           width="100%"
@@ -187,13 +276,22 @@ export const TextToSpeechPanel: React.FC = () => {
         )}
       </div>
 
-      <VoiceBrowser
-        selectedVoice={selectedVoice}
-        onSelectVoice={setSelectedVoice}
-        allVoices={allVoices}
-        isLoadingVoices={isLoadingVoices}
-      />
+      {/* Voice Browsers */}
+      {defaultTtsProvider === "elevenlabs" ? (
+        <VoiceBrowser
+          selectedVoice={selectedVoice}
+          onSelectVoice={setSelectedVoice}
+          allVoices={allVoices}
+          isLoadingVoices={isLoadingVoices}
+        />
+      ) : (
+        <GeminiVoiceSelector
+          selectedVoice={geminiVoice}
+          onSelectVoice={setGeminiVoice}
+        />
+      )}
 
+      {/* Error alert */}
       {error && (
         <Card
           variant="red"
@@ -215,6 +313,7 @@ export const TextToSpeechPanel: React.FC = () => {
         </Card>
       )}
 
+      {/* Success alert */}
       {successMsg && (
         <Card variant="green" padding={2} className="border border-green-500/30">
           <Text type="supporting" className="text-[10px] text-green-400">
@@ -223,6 +322,7 @@ export const TextToSpeechPanel: React.FC = () => {
         </Card>
       )}
 
+      {/* Enhance action button */}
       {enhanceText && !enhancedPreview && (
         <Button
           label={isEnhancing ? "Enhancing..." : "Enhance Text"}
@@ -242,8 +342,15 @@ export const TextToSpeechPanel: React.FC = () => {
         />
       )}
 
+      {/* Generate action button */}
       <Button
-        label={isGenerating ? "Generating..." : "Generate Speech"}
+        label={
+          isGenerating
+            ? "Generating Speech…"
+            : defaultTtsProvider === "gemini"
+              ? "Generate with Gemini TTS"
+              : "Generate with ElevenLabs"
+        }
         icon={
           isGenerating ? (
             <Loader2 size={14} className="animate-spin" aria-hidden />
@@ -254,11 +361,18 @@ export const TextToSpeechPanel: React.FC = () => {
         variant="primary"
         size="md"
         onClick={generateSpeech}
-        isDisabled={isGenerating || !hasElevenLabsKey || !text.trim() || !selectedVoice || (enhanceText && !enhancedPreview)}
+        isDisabled={
+          isGenerating ||
+          !hasActiveKey ||
+          !text.trim() ||
+          (defaultTtsProvider === "elevenlabs" && !selectedVoice) ||
+          (enhanceText && !enhancedPreview)
+        }
         isLoading={isGenerating}
         className="w-full"
       />
 
+      {/* Unsaved audio warning */}
       {hasUnsavedAudio && (
         <Card
           variant="yellow"
@@ -272,10 +386,11 @@ export const TextToSpeechPanel: React.FC = () => {
         </Card>
       )}
 
+      {/* Audio player and action buttons */}
       {generatedAudio && (
         <AudioResult
           generatedAudio={generatedAudio}
-          voiceName={getSelectedVoiceName()}
+          voiceName={currentVoiceName}
           isPlaying={isPlaying}
           isGenerating={isGenerating}
           onTogglePlayback={togglePlayback}
@@ -286,7 +401,7 @@ export const TextToSpeechPanel: React.FC = () => {
       )}
 
       <Text type="supporting" color="secondary" className="block text-[9px] text-center">
-        Powered by ElevenLabs · {getSelectedModelName()}
+        Powered by {defaultTtsProvider === "gemini" ? "Google Gemini 3.8 Flash Audio" : `ElevenLabs · ${getSelectedModelName()}`}
       </Text>
     </div>
   );

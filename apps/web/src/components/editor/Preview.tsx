@@ -64,6 +64,7 @@ import {
   resolveCanvasFitDimensions,
   getMediaItemCapabilities,
   getVisibleTrackRenderOrder,
+  isCaptionsTrack,
   trackHasAudioItems,
   calculateProjectDuration,
 } from "@openreel/core";
@@ -883,6 +884,52 @@ export const Preview: React.FC = () => {
     blob: Blob,
     audioTrackIndex: number = 0,
   ): Promise<AudioBuffer | null> => {
+    // 1. First try fast in-browser decoding via MediaBunny WebCodecs sink (no FFmpeg download needed)
+    try {
+      const { Input, ALL_FORMATS, BlobSource, AudioBufferSink } = await import("mediabunny");
+      const input = new Input({
+        source: new BlobSource(blob),
+        formats: ALL_FORMATS,
+      });
+      const audioTracks = await input.getAudioTracks();
+      let targetTrack = audioTracks[audioTrackIndex] ?? null;
+      if (!targetTrack && audioTrackIndex === 0) {
+        targetTrack = (await input.getPrimaryAudioTrack()) ?? audioTracks[0] ?? null;
+      }
+      if (targetTrack && (await targetTrack.canDecode())) {
+        const sink = new AudioBufferSink(targetTrack);
+        const buffers: AudioBuffer[] = [];
+        let totalSamples = 0;
+        let sampleRate = 48000;
+        let numberOfChannels = 2;
+        for await (const wrapped of sink.buffers()) {
+          buffers.push(wrapped.buffer);
+          totalSamples += wrapped.buffer.length;
+          sampleRate = wrapped.buffer.sampleRate;
+          numberOfChannels = wrapped.buffer.numberOfChannels;
+        }
+        input[Symbol.dispose]?.();
+        if (buffers.length > 0) {
+          const merged = audioContext.createBuffer(numberOfChannels, totalSamples, sampleRate);
+          for (let ch = 0; ch < numberOfChannels; ch++) {
+            const dest = merged.getChannelData(ch);
+            let offset = 0;
+            for (const b of buffers) {
+              const src = b.numberOfChannels > ch ? b.getChannelData(ch) : b.getChannelData(0);
+              dest.set(src, offset);
+              offset += b.length;
+            }
+          }
+          return merged;
+        }
+      } else {
+        input[Symbol.dispose]?.();
+      }
+    } catch {
+      // Continue to next decoding strategy
+    }
+
+    // 2. Next try native sidecar or extractAudioWav
     try {
       const { extractAudioWav } = await import("@openreel/core/media");
       const wavBlob = await extractAudioWav(blob, audioTrackIndex);
@@ -894,6 +941,7 @@ export const Preview: React.FC = () => {
       }
     }
 
+    // 3. Last fallback: direct decodeAudioData for raw audio containers
     if (audioTrackIndex === 0) {
       try {
         const arrayBuffer = await blob.arrayBuffer();
@@ -1785,6 +1833,9 @@ export const Preview: React.FC = () => {
     }
     if (audioGraphRef.current) {
       audioGraphRef.current.setPreviewMuted(isMuted);
+    }
+    for (const entry of nativeVideoCacheRef.current.values()) {
+      entry.video.muted = isMuted;
     }
   }, [isMuted]);
 
@@ -2947,6 +2998,14 @@ export const Preview: React.FC = () => {
         // Render ALL tracks in layer order using painter's algorithm
         // Higher index = rendered first (appears behind), Lower index = rendered last (appears on top)
         const allRenderableTracks = getVisibleTrackRenderOrder(timelineTracks);
+        // Caption/subtitle tracks are appended last (back-most), so their text
+        // clips are split out of the track loop and burned in after all media —
+        // matching both playback and export compositing.
+        const captionTrackIds = new Set(
+          timelineTracks
+            .filter((track) => !track.hidden && isCaptionsTrack(track))
+            .map((track) => track.id),
+        );
 
         let subjectFrame: ImageBitmap | null = null;
         const shouldCompositeSubject = hasBehindSubjectText(activeTextClips);
@@ -3140,7 +3199,9 @@ export const Preview: React.FC = () => {
             hasRenderedFrame = true;
           }
           const trackTextClips = activeTextClips.filter(
-            (clip) => clip.trackId === track.id,
+            (clip) =>
+              clip.trackId === track.id &&
+              !captionTrackIds.has(clip.trackId),
           );
           for (const textClip of trackTextClips) {
             await renderTextClipWithSubjectMask(
@@ -3156,6 +3217,23 @@ export const Preview: React.FC = () => {
 
             hasRenderedFrame = true;
           }
+        }
+
+        // Captions burn in above every media layer so a paused frame matches
+        // what playback and export show.
+        for (const textClip of activeTextClips) {
+          if (!captionTrackIds.has(textClip.trackId)) continue;
+          await renderTextClipWithSubjectMask(
+            ctx,
+            textClip,
+            canvas.width,
+            canvas.height,
+            time,
+            subjectFrame,
+            isPlaying,
+            getBehindSubjectStreamId(timelineTracks, time, getMediaItem),
+          );
+          hasRenderedFrame = true;
         }
         subjectFrame?.close();
       }
@@ -3289,6 +3367,11 @@ export const Preview: React.FC = () => {
       let hasRenderedContent = false;
 
       const allRenderableTracks = getVisibleTrackRenderOrder(timelineTracks);
+      const captionTrackIds = new Set(
+        timelineTracks
+          .filter((track) => !track.hidden && isCaptionsTrack(track))
+          .map((track) => track.id),
+      );
 
       for (const { track } of allRenderableTracks) {
         {
@@ -3351,7 +3434,8 @@ export const Preview: React.FC = () => {
           hasRenderedContent = true;
         }
         const trackTextClips = activeTextClips.filter(
-          (clip) => clip.trackId === track.id,
+          (clip) =>
+            clip.trackId === track.id && !captionTrackIds.has(clip.trackId),
         );
         for (const textClip of trackTextClips) {
           await renderTextClipWithSubjectMask(
@@ -3366,6 +3450,21 @@ export const Preview: React.FC = () => {
           );
           hasRenderedContent = true;
         }
+      }
+
+      for (const textClip of activeTextClips) {
+        if (!captionTrackIds.has(textClip.trackId)) continue;
+        await renderTextClipWithSubjectMask(
+          ctx,
+          textClip,
+          canvas.width,
+          canvas.height,
+          time,
+          null,
+          isPlaying,
+          getBehindSubjectStreamId(timelineTracks, time, getMediaItem),
+        );
+        hasRenderedContent = true;
       }
 
       const activeSubtitles = getActiveSubtitles(allSubtitles, time);
@@ -3818,8 +3917,24 @@ export const Preview: React.FC = () => {
         }
       };
 
-      const playVideoElement = async (video: HTMLVideoElement): Promise<void> => {
+      const playVideoElement = async (
+        video: HTMLVideoElement,
+        clip?: (typeof clips)[0]["clip"],
+      ): Promise<void> => {
         video.playbackRate = rateRef.current;
+        if (clip) {
+          const track = timelineTracksRef.current.find((t) => t.id === clip.trackId);
+          const hasWebAudioBuffer = Boolean(
+            audioBufferCacheRef.current.get(
+              getAudioBufferCacheKey(clip.mediaId, clip.audioTrackIndex)
+            )
+          );
+          const isClipMuted = isMuted || (track?.muted ?? false) || hasWebAudioBuffer;
+          video.muted = isClipMuted;
+          video.volume = Math.max(0, Math.min(1, clip.volume ?? 1));
+        } else {
+          video.muted = isMuted;
+        }
         if (!video.paused) {
           return;
         }
@@ -3924,9 +4039,9 @@ export const Preview: React.FC = () => {
                   : Promise.resolve(),
               ]);
               if (!isActive || !nativePlaybackActiveRef.current) return;
-              if (!outgoingHeld) await playVideoElement(clipAVideo);
-              if (!incomingHeld && clipBVideo) {
-                await playVideoElement(clipBVideo);
+              if (!outgoingHeld) await playVideoElement(clipAVideo, clipARecord.clip);
+              if (!incomingHeld && clipBVideo && clipBRecord) {
+                await playVideoElement(clipBVideo, clipBRecord.clip);
               }
 
               const blank = transitionInfo.clipB
@@ -4028,6 +4143,11 @@ export const Preview: React.FC = () => {
         const activeClip = findClipAtTime(currentPlayhead);
 
         if (!activeClip) {
+          for (const entry of videoCache.values()) {
+            if (!entry.video.paused) {
+              entry.video.pause();
+            }
+          }
           fillPreviewBackground(
             ctx,
             playheadPositionRef.current,
@@ -4166,7 +4286,12 @@ export const Preview: React.FC = () => {
         );
         await syncVideoToClipTime(video, latestClip, currentPlayhead);
         if (!isActive || !nativePlaybackActiveRef.current) return;
-        await playVideoElement(video);
+        await playVideoElement(video, latestClip);
+        for (const entry of videoCache.values()) {
+          if (entry.video !== video && !entry.video.paused) {
+            entry.video.pause();
+          }
+        }
 
         const timeUntilClipEnd =
           latestClip.startTime + latestClip.duration - currentPlayhead;
@@ -4427,7 +4552,7 @@ export const Preview: React.FC = () => {
             cleanup(true);
             return () => {};
           }
-          await playVideoElement(startupVideo);
+          await playVideoElement(startupVideo, activeStartClip.clip);
         }
       }
 
@@ -5695,6 +5820,11 @@ export const Preview: React.FC = () => {
             });
 
             const allRenderableTracks = getVisibleTrackRenderOrder(tracks);
+            const captionTrackIds = new Set(
+              tracks
+                .filter((track) => !track.hidden && isCaptionsTrack(track))
+                .map((track) => track.id),
+            );
 
             if (canvasFillModeRef.current === "blur") {
               for (const { originalIndex } of allRenderableTracks) {
@@ -5823,7 +5953,9 @@ export const Preview: React.FC = () => {
                   canvas.height,
                 );
                 const trackTextClips = activeTextClips.filter(
-                  (clip) => clip.trackId === track.id,
+                  (clip) =>
+                    clip.trackId === track.id &&
+                    !captionTrackIds.has(clip.trackId),
                 );
                 for (const textClip of trackTextClips) {
                   await renderTextClipWithSubjectMask(
@@ -5841,6 +5973,26 @@ export const Preview: React.FC = () => {
                     ),
                   );
                 }
+              }
+
+              // Captions burn in above every media layer, matching the
+              // playback overlay pass and the exported frame.
+              for (const textClip of activeTextClips) {
+                if (!captionTrackIds.has(textClip.trackId)) continue;
+                await renderTextClipWithSubjectMask(
+                  ctx,
+                  textClip,
+                  canvas.width,
+                  canvas.height,
+                  currentPlayhead,
+                  subjectFrame,
+                  true,
+                  getBehindSubjectStreamId(
+                    timelineTracksRef.current,
+                    currentPlayhead,
+                    getMediaItem,
+                  ),
+                );
               }
               subjectFrame?.close();
             }

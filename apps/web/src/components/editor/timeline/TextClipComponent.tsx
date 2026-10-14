@@ -296,7 +296,14 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
           </div>
           <div className="w-full h-full flex items-center gap-1 px-3">
             <Type size={12} className="text-fg-2 flex-shrink-0" />
-            <span className="text-[10px] font-semibold text-fg truncate">
+            <span
+              className="text-[10px] font-semibold text-fg truncate"
+              style={{
+                fontFamily: textClip.style?.fontFamily
+                  ? `${textClip.style.fontFamily}, "Khmer OS", "Khmer OS System", "Khmer OS Battambang", "Khmer OS Siemreap", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", sans-serif`
+                  : '"Khmer OS", "Khmer OS System", "Khmer OS Battambang", "Khmer OS Siemreap", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", sans-serif',
+              }}
+            >
               {textClip.text || "Text"}
             </span>
           </div>

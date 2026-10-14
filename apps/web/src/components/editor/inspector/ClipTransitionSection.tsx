@@ -92,6 +92,7 @@ const EASINGS: { id: EasingType; label: string }[] = [
 
 interface ClipTransitionSectionProps {
   clipId: string;
+  clipIds?: readonly string[];
 }
 
 interface ClipLike {
@@ -914,6 +915,7 @@ function detectCurrentTransitions(clip: ClipLike): {
 
 export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
   clipId,
+  clipIds,
 }) => {
   const {
     project,
@@ -926,10 +928,15 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     addClipTransition,
     updateClipTransition,
     removeClipTransition,
+    beginHistoryGroup,
+    endHistoryGroup,
   } = useProjectStore();
   const getTitleEngine = useEngineStore((state) => state.getTitleEngine);
   const getGraphicsEngine = useEngineStore((state) => state.getGraphicsEngine);
   const { settings } = project;
+
+  const targetClipIds = clipIds?.length ? [...clipIds] : [clipId];
+  const isBatch = targetClipIds.length > 1;
 
   const timelineClipContext = useMemo(() => {
     for (const track of project.timeline.tracks) {
@@ -1133,53 +1140,122 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
     detected.exit.easing,
   );
 
-  const applyTransitions = useCallback(() => {
-    if (!clip) {
-      return;
-    }
-
-    const existingKeyframes = (clip.data.keyframes || []).filter(
-      (kf) => !kf.id.startsWith("kf-entry-") && !kf.id.startsWith("kf-exit-"),
-    );
-
-    const canvas = { width: settings.width, height: settings.height };
-    const clipTypeForKeyframes: ClipType =
-      clip.type === "regular" || clip.type === "text" ? clip.type : "regular";
-    const newKeyframes = generateKeyframes(
-      clip.data,
-      { preset: entryPreset, duration: entryDuration, easing: entryEasing },
-      { preset: exitPreset, duration: exitDuration, easing: exitEasing },
-      clipTypeForKeyframes,
-      canvas,
-    );
-
-    const allKeyframes = [...existingKeyframes, ...newKeyframes];
-
-    if (clip.type === "text") {
-      updateTextClipKeyframes(clipId, allKeyframes);
-    } else if (
-      clip.type === "shape" ||
-      clip.type === "svg" ||
-      clip.type === "sticker"
-    ) {
-      const graphicsEngine = getGraphicsEngine();
-      if (graphicsEngine) {
-        const graphicsClip =
-          clip.type === "shape"
-            ? graphicsEngine.getShapeClip(clipId)
-            : clip.type === "svg"
-              ? graphicsEngine.getSVGClip(clipId)
-              : graphicsEngine.getStickerClip(clipId);
-
-        if (graphicsClip) {
-          (graphicsClip as MutableGraphicClip).keyframes = allKeyframes;
-          useProjectStore.setState((state) => ({
-            project: { ...state.project, modifiedAt: Date.now() },
-          }));
+  const resolveTargetClip = useCallback(
+    (
+      targetId: string,
+    ):
+      | {
+          type: "regular" | "text" | "shape" | "svg" | "sticker";
+          data: ClipLike;
         }
+      | null => {
+      for (const track of project.timeline.tracks) {
+        const found = track.clips.find((c) => c.id === targetId);
+        if (found) return { type: "regular" as const, data: found as ClipLike };
       }
-    } else {
-      updateClipKeyframes(clipId, allKeyframes);
+
+      const textClip = getTextClip(targetId);
+      if (textClip) return { type: "text" as const, data: textClip as ClipLike };
+
+      const shapeClip = getShapeClip(targetId);
+      if (shapeClip)
+        return { type: "shape" as const, data: shapeClip as ClipLike };
+
+      const svgClip = getSVGClip(targetId);
+      if (svgClip) return { type: "svg" as const, data: svgClip as ClipLike };
+
+      const stickerClip = getStickerClip(targetId);
+      if (stickerClip)
+        return { type: "sticker" as const, data: stickerClip as ClipLike };
+
+      return null;
+    },
+    [
+      project.timeline.tracks,
+      project.modifiedAt,
+      getTextClip,
+      getShapeClip,
+      getSVGClip,
+      getStickerClip,
+    ],
+  );
+
+  const applyTransitionsToTarget = useCallback(
+    (targetId: string) => {
+      const targetClip = resolveTargetClip(targetId);
+      if (!targetClip) {
+        return;
+      }
+
+      const existingKeyframes = (targetClip.data.keyframes || []).filter(
+        (kf) => !kf.id.startsWith("kf-entry-") && !kf.id.startsWith("kf-exit-"),
+      );
+
+      const canvas = { width: settings.width, height: settings.height };
+      const clipTypeForKeyframes: ClipType =
+        targetClip.type === "regular" || targetClip.type === "text"
+          ? targetClip.type
+          : "regular";
+      const newKeyframes = generateKeyframes(
+        targetClip.data,
+        { preset: entryPreset, duration: entryDuration, easing: entryEasing },
+        { preset: exitPreset, duration: exitDuration, easing: exitEasing },
+        clipTypeForKeyframes,
+        canvas,
+      );
+
+      const allKeyframes = [...existingKeyframes, ...newKeyframes];
+
+      if (targetClip.type === "text") {
+        updateTextClipKeyframes(targetId, allKeyframes);
+      } else if (
+        targetClip.type === "shape" ||
+        targetClip.type === "svg" ||
+        targetClip.type === "sticker"
+      ) {
+        const graphicsEngine = getGraphicsEngine();
+        if (graphicsEngine) {
+          const graphicsClip =
+            targetClip.type === "shape"
+              ? graphicsEngine.getShapeClip(targetId)
+              : targetClip.type === "svg"
+                ? graphicsEngine.getSVGClip(targetId)
+                : graphicsEngine.getStickerClip(targetId);
+
+          if (graphicsClip) {
+            (graphicsClip as MutableGraphicClip).keyframes = allKeyframes;
+            useProjectStore.setState((state) => ({
+              project: { ...state.project, modifiedAt: Date.now() },
+            }));
+          }
+        }
+      } else {
+        updateClipKeyframes(targetId, allKeyframes);
+      }
+    },
+    [
+      resolveTargetClip,
+      entryPreset,
+      entryDuration,
+      entryEasing,
+      exitPreset,
+      exitDuration,
+      exitEasing,
+      settings,
+      getGraphicsEngine,
+      updateClipKeyframes,
+      updateTextClipKeyframes,
+    ],
+  );
+
+  const applyTransitions = useCallback(() => {
+    if (isBatch) beginHistoryGroup("Apply entry/exit animations to selected clips");
+    try {
+      for (const targetId of targetClipIds) {
+        applyTransitionsToTarget(targetId);
+      }
+    } finally {
+      if (isBatch) endHistoryGroup();
     }
 
     const parts: string[] = [];
@@ -1195,17 +1271,13 @@ export const ClipTransitionSection: React.FC<ClipTransitionSectionProps> = ({
       toast.info("Animations Cleared");
     }
   }, [
-    clip,
-    clipId,
+    isBatch,
+    beginHistoryGroup,
+    endHistoryGroup,
+    targetClipIds,
+    applyTransitionsToTarget,
     entryPreset,
-    entryDuration,
-    entryEasing,
     exitPreset,
-    exitDuration,
-    exitEasing,
-    updateClipKeyframes,
-    updateTextClipKeyframes,
-    settings,
   ]);
 
   if (!clip) return null;

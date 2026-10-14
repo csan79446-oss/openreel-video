@@ -7,9 +7,31 @@
    All values are CSS variables. Components use Tailwind utilities
    that map to these via tailwind.config.js.
    ============================================================ */
+/* Khmer OS Font aliases mapping to local Khmer OS or high-quality Google Fonts */
+@font-face {
+  font-family: "Khmer OS";
+  src: local("Khmer OS"), local("Khmer OS System"), local("Kantumruy Pro"), local("Battambang");
+}
+@font-face {
+  font-family: "Khmer OS System";
+  src: local("Khmer OS System"), local("Khmer OS"), local("Kantumruy Pro"), local("Battambang");
+}
+@font-face {
+  font-family: "Khmer OS Battambang";
+  src: local("Khmer OS Battambang"), local("Battambang"), local("Kantumruy Pro");
+}
+@font-face {
+  font-family: "Khmer OS Siemreap";
+  src: local("Khmer OS Siemreap"), local("Siemreap"), local("Kantumruy Pro");
+}
+@font-face {
+  font-family: "Khmer OS Muol Light";
+  src: local("Khmer OS Muol Light"), local("Moul"), local("Kantumruy Pro");
+}
+
 @layer base {
   :root {
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    font-family: "Inter", "Khmer OS", "Khmer OS System", "Khmer OS Battambang", "Khmer OS Siemreap", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", -apple-system, BlinkMacSystemFont, "Segoe UI",
       system-ui, sans-serif;
     line-height: 1.5;
     font-weight: 400;

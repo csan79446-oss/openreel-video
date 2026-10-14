@@ -55,6 +55,7 @@ export {
   getTimelineItemCapabilities,
   getMediaItemCapabilities,
   getVisibleTrackRenderOrder,
+  isCaptionsTrack,
   trackHasVisualItems,
   trackHasAudioItems,
   isStandardTrack,

@@ -1,7 +1,10 @@
 import type { Subtitle, SubtitleStyle, Timeline } from "../types/timeline";
 
+const KHMER_SUBTITLE_FONT_STACK =
+  '"Khmer OS", "Khmer OS System", "Khmer OS Battambang", "Khmer OS Siemreap", "Kantumruy Pro", "Battambang", "Noto Sans Khmer", Arial, sans-serif';
+
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
-  fontFamily: "Arial",
+  fontFamily: KHMER_SUBTITLE_FONT_STACK,
   fontSize: 24,
   color: "#ffffff",
   backgroundColor: "rgba(0, 0, 0, 0.75)",
@@ -11,49 +14,49 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 export const SUBTITLE_STYLE_PRESETS: Record<string, SubtitleStyle> = {
   default: DEFAULT_SUBTITLE_STYLE,
   classic: {
-    fontFamily: "Arial",
+    fontFamily: `Arial, ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 24,
     color: "#ffffff",
     backgroundColor: "rgba(0, 0, 0, 0.75)",
     position: "bottom",
   },
   modern: {
-    fontFamily: "Helvetica Neue",
+    fontFamily: `"Helvetica Neue", ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 28,
     color: "#ffffff",
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     position: "bottom",
   },
   cinematic: {
-    fontFamily: "Georgia",
+    fontFamily: `Georgia, ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 26,
     color: "#f0f0f0",
     backgroundColor: "transparent",
     position: "bottom",
   },
   bold: {
-    fontFamily: "Impact",
+    fontFamily: `Impact, ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 32,
     color: "#ffff00",
     backgroundColor: "rgba(0, 0, 0, 0.8)",
     position: "bottom",
   },
   minimal: {
-    fontFamily: "Roboto",
+    fontFamily: `Roboto, ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 22,
     color: "#ffffff",
     backgroundColor: "transparent",
     position: "bottom",
   },
   topCenter: {
-    fontFamily: "Arial",
+    fontFamily: `Arial, ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 24,
     color: "#ffffff",
     backgroundColor: "rgba(0, 0, 0, 0.75)",
     position: "top",
   },
   centered: {
-    fontFamily: "Arial",
+    fontFamily: `Arial, ${KHMER_SUBTITLE_FONT_STACK}`,
     fontSize: 24,
     color: "#ffffff",
     backgroundColor: "rgba(0, 0, 0, 0.75)",
