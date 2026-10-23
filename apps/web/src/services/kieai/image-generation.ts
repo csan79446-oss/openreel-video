@@ -158,7 +158,9 @@ export async function pollTask(
 
     if (record.state === "success") return record;
     if (record.state === "fail") {
-      throw new KieAIError(record.failCode ?? 500, record.failMsg ?? "Generation failed");
+      const rec = record as any;
+      const msg = rec.failMsg || rec.failReason || rec.error || rec.message || "Generation failed";
+      throw new KieAIError(record.failCode ?? 500, msg);
     }
 
     // Wait before next poll
@@ -186,55 +188,162 @@ export async function pollTaskOnce(taskId: string): Promise<TaskRecord> {
 }
 
 /**
- * Extract the first result image URL from a completed task.
+ * Extract the first result media URL (image or video) from a completed task.
  *
  * KieAI's resultJson shape varies by model — we try all known field paths.
  */
 export function getResultUrl(record: TaskRecord): string {
+  if (!record) {
+    throw new KieAIError(500, "Empty task record received");
+  }
+
   // resultJson is returned as a JSON string by the API — parse it if needed
   let rj: Record<string, unknown> | null = null;
   if (typeof record.resultJson === "string") {
+    const trimmed = record.resultJson.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
     try {
-      rj = JSON.parse(record.resultJson) as Record<string, unknown>;
+      rj = JSON.parse(trimmed) as Record<string, unknown>;
     } catch {
       throw new KieAIError(500, "Failed to parse resultJson from API");
     }
-  } else {
-    rj = record.resultJson as Record<string, unknown> | null;
+  } else if (typeof record.resultJson === "object" && record.resultJson !== null) {
+    rj = record.resultJson as Record<string, unknown>;
   }
 
-  // Try every known field path
-  const candidates: unknown[] = [
+  const recAny = record as unknown as Record<string, unknown>;
+
+  // Try every known array field path
+  const candidateArrays: unknown[] = [
     rj?.resultUrls,
     rj?.result_urls,
+    rj?.sunoData,
+    (rj?.response as Record<string, unknown> | undefined)?.sunoData,
+    (rj?.data as Record<string, unknown> | undefined)?.sunoData,
+    rj?.videos,
+    rj?.video_urls,
     rj?.images,
     rj?.outputs,
     rj?.urls,
+    rj?.audios,
+    rj?.tracks,
+    recAny.resultUrls,
+    recAny.result_urls,
+    recAny.sunoData,
+    (recAny.response as Record<string, unknown> | undefined)?.sunoData,
+    recAny.videos,
+    recAny.video_urls,
   ];
 
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate) && typeof candidate[0] === "string" && candidate[0]) {
-      return candidate[0];
+  for (const candidate of candidateArrays) {
+    if (Array.isArray(candidate) && candidate.length > 0) {
+      const first = candidate[0];
+      if (typeof first === "string" && first) return first;
+      if (first && typeof first === "object") {
+        const obj = first as Record<string, unknown>;
+        for (const field of [
+          "audio_url",
+          "audioUrl",
+          "stream_audio_url",
+          "streamAudioUrl",
+          "url",
+          "video_url",
+          "videoUrl",
+          "video",
+          "image_url",
+          "imageUrl",
+          "resultUrl",
+          "audio",
+          "music_url",
+        ]) {
+          if (typeof obj[field] === "string" && obj[field]) return obj[field] as string;
+        }
+      }
     }
   }
 
   // Single-string fields
-  const stringFields = ["resultUrl", "result_url", "url", "image_url", "output", "imageUrl"];
+  const stringFields = [
+    "audio_url",
+    "audioUrl",
+    "stream_audio_url",
+    "streamAudioUrl",
+    "resultUrl",
+    "result_url",
+    "url",
+    "audio",
+    "music_url",
+    "video_url",
+    "videoUrl",
+    "video",
+    "image_url",
+    "output",
+    "imageUrl",
+  ];
   for (const field of stringFields) {
-    const val = rj?.[field];
-    if (typeof val === "string" && val) return val;
-  }
-
-  // Nested: resultJson.result.url or resultJson.data.url
-  for (const wrapper of ["result", "data", "output"]) {
-    const nested = rj?.[wrapper] as Record<string, unknown> | undefined;
-    if (nested && typeof nested === "object") {
-      for (const field of ["url", "image_url", "imageUrl", "resultUrl"]) {
-        if (typeof nested[field] === "string" && nested[field]) return nested[field] as string;
-      }
-      if (Array.isArray(nested.urls) && typeof nested.urls[0] === "string") return nested.urls[0];
+    const val = rj?.[field] ?? recAny[field];
+    if (typeof val === "string" && val && (val.startsWith("http://") || val.startsWith("https://"))) {
+      return val;
     }
   }
 
+  // Nested: resultJson.result.url or resultJson.data.url or resultJson.video.url or resultJson.response.url
+  for (const wrapper of ["result", "data", "output", "video", "response", "sunoData"]) {
+    const nested = (rj?.[wrapper] ?? recAny[wrapper]) as Record<string, unknown> | undefined;
+    if (nested && typeof nested === "object") {
+      for (const field of [
+        "audio_url",
+        "audioUrl",
+        "stream_audio_url",
+        "streamAudioUrl",
+        "url",
+        "video_url",
+        "videoUrl",
+        "video",
+        "image_url",
+        "imageUrl",
+        "resultUrl",
+        "audio",
+      ]) {
+        if (typeof nested[field] === "string" && nested[field]) return nested[field] as string;
+      }
+      if (Array.isArray(nested.urls) && typeof nested.urls[0] === "string") return nested.urls[0];
+      if (Array.isArray(nested.resultUrls) && typeof nested.resultUrls[0] === "string") return nested.resultUrls[0];
+      if (Array.isArray(nested.videos) && typeof nested.videos[0] === "string") return nested.videos[0];
+      if (Array.isArray(nested.video_urls) && typeof nested.video_urls[0] === "string") return nested.video_urls[0];
+      if (Array.isArray(nested.sunoData) && nested.sunoData.length > 0) {
+        const item = nested.sunoData[0] as any;
+        const u = item?.audio_url || item?.audioUrl || item?.stream_audio_url || item?.url;
+        if (typeof u === "string" && u) return u;
+      }
+    }
+  }
+
+  // Recursive fallback: any http/https URL
+  const allUrls: string[] = [];
+  function harvestUrls(node: unknown) {
+    if (!node) return;
+    if (typeof node === "string") {
+      if (node.startsWith("http://") || node.startsWith("https://")) allUrls.push(node);
+    } else if (Array.isArray(node)) {
+      for (const item of node) harvestUrls(item);
+    } else if (typeof node === "object") {
+      for (const k of Object.keys(node as Record<string, unknown>)) {
+        harvestUrls((node as Record<string, unknown>)[k]);
+      }
+    }
+  }
+  harvestUrls(rj || record);
+
+  const mediaUrls = allUrls.filter((u) =>
+    /\.(mp3|wav|m4a|ogg|mp4|mov|webm|png|jpg|jpeg|webp)(\?.*)?$/i.test(u) ||
+    u.includes("audio") || u.includes("video") || u.includes("suno")
+  );
+  if (mediaUrls.length > 0) return mediaUrls[0];
+  if (allUrls.length > 0) return allUrls[0];
+
+  console.error("[KieAI] Unable to find media URL in completed record:", record);
   throw new KieAIError(500, "No result URL in completed task — check console for raw record");
 }

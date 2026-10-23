@@ -100,4 +100,8 @@ xcuserdata/
 /Openreel Video/
 /Openreel Video Android/
 /apps/ios/
+
+# Desktop app bundles (build artifacts)
+*.tgz
+*.exe
 /apps/android/

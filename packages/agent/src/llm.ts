@@ -2,6 +2,7 @@ export interface LLMToolUse {
   readonly id: string;
   readonly name: string;
   readonly input: Record<string, unknown>;
+  readonly raw?: Record<string, unknown>;
 }
 
 /** Informational only — the loop drives control flow off toolUses, not this. */
@@ -313,11 +314,26 @@ export function buildOpenAIBody(
         content: m.content || null,
         ...(m.toolUses.length
           ? {
-              tool_calls: m.toolUses.map((tu) => ({
-                id: tu.id,
-                type: "function",
-                function: { name: tu.name, arguments: JSON.stringify(tu.input) },
-              })),
+              tool_calls: m.toolUses.map((tu) => {
+                if (tu.raw && isRecord(tu.raw)) {
+                  const fn = isRecord(tu.raw.function) ? tu.raw.function : {};
+                  return {
+                    ...tu.raw,
+                    id: tu.id,
+                    type: "function",
+                    function: {
+                      ...fn,
+                      name: tu.name,
+                      arguments: JSON.stringify(tu.input),
+                    },
+                  };
+                }
+                return {
+                  id: tu.id,
+                  type: "function",
+                  function: { name: tu.name, arguments: JSON.stringify(tu.input) },
+                };
+              }),
             }
           : {}),
       });
@@ -326,10 +342,12 @@ export function buildOpenAIBody(
         const content =
           typeof r.content === "string"
             ? r.content
-            : (r.content.find(
-                (block): block is { type: "text"; text: string } =>
-                  block.type === "text",
-              )?.text ?? "");
+            : Array.isArray(r.content)
+              ? (r.content.find(
+                  (block): block is { type: "text"; text: string } =>
+                    block.type === "text",
+                )?.text ?? "")
+              : "";
         messages.push({ role: "tool", tool_call_id: r.toolUseId, content });
       }
     }
@@ -400,10 +418,22 @@ export function parseOpenAIResponse(raw: unknown): LLMResponse {
       typeof rawToolCall.id === "string" && rawToolCall.id
         ? rawToolCall.id
         : `compatible-tool-call-${index}`;
+    const rawKeys = Object.keys(rawToolCall).filter(
+      (k) => !["id", "type", "function"].includes(k),
+    );
+    const fnKeys = isRecord(rawToolCall.function)
+      ? Object.keys(rawToolCall.function).filter((k) => !["name", "arguments"].includes(k))
+      : [];
+    const raw =
+      rawKeys.length > 0 || fnKeys.length > 0
+        ? (rawToolCall as Record<string, unknown>)
+        : undefined;
+
     return {
       id,
       name,
       input: parseToolInput(fn.arguments, name),
+      ...(raw ? { raw } : {}),
     };
   });
   const stopReason: LLMStopReason =

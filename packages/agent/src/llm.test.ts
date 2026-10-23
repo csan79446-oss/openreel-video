@@ -188,4 +188,48 @@ describe("OpenAI normalization", () => {
     const res = await client.complete({ messages: [{ role: "user", content: "hi" }], tools: [] });
     expect(res.text).toBe("yo");
   });
+
+  it("preserves thought_signature and extra metadata from Gemini/OpenAI tool calls in subsequent turn", () => {
+    const parsed = parseOpenAIResponse({
+      choices: [
+        {
+          message: {
+            content: null,
+            tool_calls: [
+              {
+                id: "call-1",
+                type: "function",
+                function: {
+                  name: "list_media",
+                  arguments: "{}",
+                  thought_signature: "sig_12345",
+                },
+                extra_content: { google: { thought_signature: "sig_12345" } },
+              },
+            ],
+          },
+          finish_reason: "tool_calls",
+        },
+      ],
+    });
+
+    const body = buildOpenAIBody(
+      {
+        messages: [
+          { role: "assistant", content: "", toolUses: parsed.toolUses },
+          { role: "tool", results: [{ toolUseId: "call-1", content: "ok", isError: false }] },
+        ],
+        tools: [],
+      },
+      "gemini-2.0-flash",
+    ) as { messages: Array<{ role: string; tool_calls?: Array<Record<string, unknown>> }> };
+
+    const assistantMsg = body.messages[0];
+    expect(assistantMsg.tool_calls?.[0].extra_content).toEqual({
+      google: { thought_signature: "sig_12345" },
+    });
+    expect(
+      (assistantMsg.tool_calls?.[0].function as Record<string, unknown>).thought_signature,
+    ).toBe("sig_12345");
+  });
 });

@@ -34,7 +34,16 @@ const ALLOWED_RESULT_HOSTS = new Set([
 function isAllowedResultUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return ALLOWED_RESULT_HOSTS.has(parsed.hostname);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    const host = parsed.hostname.toLowerCase();
+    return (
+      ALLOWED_RESULT_HOSTS.has(host) ||
+      host.endsWith(".kie.ai") ||
+      host.endsWith(".aiquickdraw.com") ||
+      host.endsWith(".suno.ai") ||
+      host.endsWith(".suno.com") ||
+      host.endsWith(".r2.cloudflarestorage.com")
+    );
   } catch {
     return false;
   }

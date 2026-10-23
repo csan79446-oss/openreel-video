@@ -37,6 +37,7 @@ export {
 } from "./image-generation";
 
 export type {
+  AspectRatio,
   ImageModelId,
   ImageModelInput,
   SeedreamInput,
@@ -48,3 +49,35 @@ export type {
   TaskRecord,
   TaskState,
 } from "./image-generation";
+
+export {
+  VIDEO_MODELS,
+  VIDEO_MODEL_INFOS,
+  createVideoTask,
+  pollVideoTask,
+  pollVideoTaskOnce,
+  getVideoResultUrl,
+} from "./video-generation";
+
+export type {
+  VideoModelId,
+  VideoModelInfo,
+  VideoGenerationInput,
+} from "./video-generation";
+
+export {
+  SUNO_MODELS,
+  createMusicTask,
+  pollMusicTask,
+  pollMusicTaskOnce,
+  getMusicResultUrl,
+  getMusicTracks,
+} from "./music-generation";
+
+export type {
+  SunoModelId,
+  VocalGender,
+  SunoTrackResult,
+  MusicGenerationInput,
+} from "./music-generation";
+

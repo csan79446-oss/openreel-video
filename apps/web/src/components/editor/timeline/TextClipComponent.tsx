@@ -73,6 +73,17 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
     historyGroupOpenRef.current = false;
   }, []);
 
+  const allTracksRef = useRef(allTracks);
+  allTracksRef.current = allTracks;
+  const trackHeightsRef = useRef(trackHeights);
+  trackHeightsRef.current = trackHeights;
+  const snapSettingsRef = useRef(snapSettings);
+  snapSettingsRef.current = snapSettings;
+  const onMoveClipRef = useRef(onMoveClip);
+  onMoveClipRef.current = onMoveClip;
+  const pixelsPerSecondRef = useRef(pixelsPerSecond);
+  pixelsPerSecondRef.current = pixelsPerSecond;
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (touchGesture.shouldIgnoreMouse(e) || locked) return false;
     if (e.button !== 0) return;
@@ -99,23 +110,24 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
   };
 
   useEffect(() => {
-    if (!isDragging || !onMoveClip) return;
+    if (!isDragging) return;
 
     const handleMouseMove = (e: MouseEvent) => {
       const rect = clipRef.current?.parentElement?.getBoundingClientRect();
       if (!rect) return;
 
+      const pps = pixelsPerSecondRef.current;
       const x = e.clientX - rect.left - dragOffset;
-      const rawTime = Math.max(0, x / pixelsPerSecond);
-      const allTracks = useProjectStore.getState().project.timeline.tracks;
-      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
+      const rawTime = Math.max(0, x / pps);
+      const tracks = allTracksRef.current;
+      const dragSnapSettings = { ...snapSettingsRef.current, snapToPlayhead: false };
       const snapResult = calculateSnap(
         rawTime,
         textClip.id,
-        allTracks,
+        tracks,
         useTimelineStore.getState().playheadPosition,
         dragSnapSettings,
-        pixelsPerSecond,
+        pps,
         textClip.duration,
       );
       const timelineRect = timelineRef.current?.getBoundingClientRect();
@@ -124,8 +136,8 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
       if (timelineRect) {
         const mouseY = e.clientY - timelineRect.top + scrollTop;
         let cumulativeY = 0;
-        for (const track of allTracks) {
-          const height = trackHeights.get(track.id) ?? 48;
+        for (const track of tracks) {
+          const height = trackHeightsRef.current.get(track.id) ?? 48;
           if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
             if (!track.locked && track.id !== textClip.trackId) {
               targetTrackId = track.id;
@@ -136,12 +148,12 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
         }
       }
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
-      onMoveClip(textClip.id, snapResult.time);
+      onMoveClipRef.current?.(textClip.id, snapResult.time);
     };
 
     const handleMouseUp = async () => {
       const pending = pendingDropRef.current;
-      await onMoveClip(
+      await onMoveClipRef.current?.(
         textClip.id,
         pending.time,
         pending.targetTrackId ?? textClip.trackId,
@@ -164,14 +176,9 @@ export const TextClipComponent: React.FC<TextClipComponentProps> = ({
     textClip.id,
     textClip.trackId,
     textClip.duration,
-    pixelsPerSecond,
-    dragOffset,
-    onMoveClip,
-    snapSettings,
     endTimingGesture,
     timelineRef,
-    allTracks,
-    trackHeights,
+    dragOffset,
   ]);
 
   const handleTrimStart = (e: React.MouseEvent, edge: "left" | "right") => {

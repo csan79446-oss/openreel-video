@@ -47,13 +47,23 @@ export async function kieaiPostJson<TBody extends object, TData>(
   });
 
   if (!res.ok) {
-    throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
+    let errorDetail = "";
+    try {
+      const errJson = (await res.json()) as any;
+      errorDetail = errJson.msg || errJson.message || errJson.error || "";
+    } catch {
+      // ignore
+    }
+    throw new KieAIError(
+      res.status,
+      errorDetail ? `${errorDetail} (HTTP ${res.status})` : `HTTP ${res.status}: ${res.statusText}`,
+    );
   }
 
   const json = (await res.json()) as KieAIResponse<TData>;
 
   if (json.code !== 200) {
-    throw new KieAIError(json.code, json.msg);
+    throw new KieAIError(json.code, json.msg || "KieAI request failed");
   }
 
   return json.data;
@@ -74,12 +84,22 @@ export async function kieaiGet<TData>(
   });
 
   if (!res.ok) {
-    throw new KieAIError(res.status, `HTTP ${res.status}: ${res.statusText}`);
+    let errorDetail = "";
+    try {
+      const errJson = (await res.json()) as any;
+      errorDetail = errJson.msg || errJson.message || errJson.error || "";
+    } catch {
+      // ignore
+    }
+    throw new KieAIError(
+      res.status,
+      errorDetail ? `${errorDetail} (HTTP ${res.status})` : `HTTP ${res.status}: ${res.statusText}`,
+    );
   }
 
   const json = (await res.json()) as KieAIResponse<TData>;
   if (json.code !== 200) {
-    throw new KieAIError(json.code, json.msg);
+    throw new KieAIError(json.code, json.msg || "KieAI request failed");
   }
   return json.data;
 }

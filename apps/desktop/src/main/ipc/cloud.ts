@@ -2,6 +2,7 @@ import { getKeyStore } from "./keychain";
 
 export type CloudService =
   | "elevenlabs"
+  | "gemini"
   | "openai"
   | "anthropic"
   | "openai-compatible"
@@ -21,6 +22,10 @@ export const DIRECT_CONFIG: Record<
   elevenlabs: {
     baseUrl: "https://api.elevenlabs.io/v1",
     authHeaders: (key) => ({ "xi-api-key": key }),
+  },
+  gemini: {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+    authHeaders: (key) => ({ "x-goog-api-key": key }),
   },
   openai: {
     baseUrl: "https://api.openai.com/v1",

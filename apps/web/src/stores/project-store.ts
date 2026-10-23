@@ -1966,12 +1966,16 @@ export const useProjectStore = create<ProjectState>()(
           }
         }
 
-        const file = new File([blob], name, { type: blob.type || "image/png" });
+        const isVideo = blob.type.startsWith("video/") || /\.(mp4|webm|mov)$/i.test(name);
+        const isAudio = blob.type.startsWith("audio/") || /\.(mp3|wav|ogg|m4a|aac)$/i.test(name);
+        const mediaType: "image" | "video" | "audio" = isVideo ? "video" : isAudio ? "audio" : "image";
+        const defaultMime = isVideo ? "video/mp4" : isAudio ? "audio/mpeg" : "image/png";
+        const file = new File([blob], name, { type: blob.type || defaultMime });
 
         const updatedItem: MediaItem = {
           id: mediaId,
           name,
-          type: "image",
+          type: mediaType,
           fileHandle: null,
           blob: file,
           metadata: {

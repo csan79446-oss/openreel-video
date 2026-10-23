@@ -10,6 +10,8 @@ import {
   Wand2,
   FileStack,
   Volume2,
+  Sparkles,
+  Image as ImageIcon,
 } from "@/icons/lucide-compat";
 import { ToolcraftButton as Button } from "@openreel/ui";
 import { ToolcraftClickableCard as ClickableCard } from "@openreel/ui";
@@ -20,10 +22,21 @@ import { FilterPresetsPanel } from "./inspector/FilterPresetsPanel";
 import { MusicLibraryPanel } from "./inspector/MusicLibraryPanel";
 import { TemplatesBrowserPanel } from "./inspector/TemplatesBrowserPanel";
 import { MultiCameraPanel } from "./inspector/MultiCameraPanel";
+import { KieAIImagePanel } from "./inspector/KieAIImagePanel";
+import { KieAIVideoPanel } from "./inspector/KieAIVideoPanel";
 import { useTtsAudioStore } from "../../stores/tts-store";
 import { toast } from "../../stores/notification-store";
 
-type FeatureId = "templates" | "captions" | "tts" | "filters" | "music" | "multicam" | null;
+type FeatureId =
+  | "templates"
+  | "captions"
+  | "tts"
+  | "filters"
+  | "music"
+  | "multicam"
+  | "image-gen"
+  | "video-gen"
+  | null;
 
 interface FeatureCardProps {
   icon: React.ElementType;
@@ -123,6 +136,10 @@ export const AIGenTab: React.FC = () => {
 
   const renderActivePanel = () => {
     switch (activeFeature) {
+      case "image-gen":
+        return <KieAIImagePanel />;
+      case "video-gen":
+        return <KieAIVideoPanel />;
       case "templates":
         return <TemplatesBrowserPanel />;
       case "captions":
@@ -168,11 +185,53 @@ export const AIGenTab: React.FC = () => {
             AI-Powered Tools
           </Text>
           <Text type="supporting" color="secondary" display="block" className="mt-1 text-[11px]">
-            Automate your editing with intelligent features
+            Automate your editing with generative AI
           </Text>
         </div>
 
-        <FeatureSection title="Content Generation" icon={Wand2}>
+        <FeatureSection title="AI Media Generation (Kie.ai)" icon={Sparkles}>
+          <FeatureCard
+            icon={ImageIcon}
+            title="AI Image Generation"
+            description="Generate images with Flux, Seedream, Grok, Z-Image"
+            iconColor="text-purple-400"
+            iconBg="bg-purple-500/20"
+            activeBorder="border-purple-500/50"
+            activeBg="bg-purple-500/10"
+            activeRing="ring-purple-500/30"
+            isActive={activeFeature === "image-gen"}
+            onClick={() => handleFeatureClick("image-gen")}
+          />
+          <FeatureCard
+            icon={Video}
+            title="AI Video Generation"
+            description="Generate cinematic videos with Runway, Kling, Veo, Wan"
+            iconColor="text-cyan-400"
+            iconBg="bg-cyan-500/20"
+            activeBorder="border-cyan-500/50"
+            activeBg="bg-cyan-500/10"
+            activeRing="ring-cyan-500/30"
+            isActive={activeFeature === "video-gen"}
+            onClick={() => handleFeatureClick("video-gen")}
+          />
+        </FeatureSection>
+
+        <FeatureSection title="Media Library & Audio" icon={Volume2}>
+          <FeatureCard
+            icon={Music}
+            title="Music & Sound Effects"
+            description="Browse royalty-free audio or generate AI songs with Suno"
+            iconColor="text-teal-400"
+            iconBg="bg-teal-500/20"
+            activeBorder="border-teal-500/50"
+            activeBg="bg-teal-500/10"
+            activeRing="ring-teal-500/30"
+            isActive={activeFeature === "music"}
+            onClick={() => handleFeatureClick("music")}
+          />
+        </FeatureSection>
+
+        <FeatureSection title="Voice & Captions" icon={Wand2}>
           <FeatureCard
             icon={Mic}
             title="Text to Speech"
@@ -226,22 +285,7 @@ export const AIGenTab: React.FC = () => {
           />
         </FeatureSection>
 
-        <FeatureSection title="Media Library" icon={Volume2}>
-          <FeatureCard
-            icon={Music}
-            title="Music & Sound Effects"
-            description="Browse royalty-free audio for your projects"
-            iconColor="text-teal-400"
-            iconBg="bg-teal-500/20"
-            activeBorder="border-teal-500/50"
-            activeBg="bg-teal-500/10"
-            activeRing="ring-teal-500/30"
-            isActive={activeFeature === "music"}
-            onClick={() => handleFeatureClick("music")}
-          />
-        </FeatureSection>
-
-        <FeatureSection title="Tools" icon={Video}>
+        <FeatureSection title="Editing Tools" icon={Video}>
           <FeatureCard
             icon={Video}
             title="Multi-Camera Editing"
@@ -258,7 +302,7 @@ export const AIGenTab: React.FC = () => {
 
         <div className="pt-2 border-t border-border">
           <Text type="supporting" color="secondary" display="block" justify="center" className="text-[9px]">
-            More AI features coming soon — image generation, auto-edit, and more
+            AI powered by ElevenLabs, Gemini, Whisper & Kie.ai
           </Text>
         </div>
       </div>

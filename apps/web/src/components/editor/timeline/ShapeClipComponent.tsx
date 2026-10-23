@@ -60,6 +60,19 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
     duration: shapeClip.duration,
   });
 
+  const pixelsPerSecondRef = useRef(pixelsPerSecond);
+  pixelsPerSecondRef.current = pixelsPerSecond;
+  const allTracksRef = useRef(allTracks);
+  allTracksRef.current = allTracks;
+  const trackHeightsRef = useRef(trackHeights);
+  trackHeightsRef.current = trackHeights;
+  const snapSettingsRef = useRef(snapSettings);
+  snapSettingsRef.current = snapSettings;
+  const onMoveClipRef = useRef(onMoveClip);
+  onMoveClipRef.current = onMoveClip;
+  const dragOffsetRef = useRef(dragOffset);
+  dragOffsetRef.current = dragOffset;
+
   const left = shapeClip.startTime * pixelsPerSecond;
   const width = shapeClip.duration * pixelsPerSecond;
 
@@ -120,17 +133,19 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
       const timelineElement = clipRef.current?.parentElement;
       if (!timelineElement) return;
 
+      const pps = pixelsPerSecondRef.current;
       const rect = timelineElement.getBoundingClientRect();
-      const x = e.clientX - rect.left - dragOffset;
-      const rawTime = Math.max(0, x / pixelsPerSecond);
-      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
+      const x = e.clientX - rect.left - dragOffsetRef.current;
+      const rawTime = Math.max(0, x / pps);
+      const tracks = allTracksRef.current;
+      const dragSnapSettings = { ...snapSettingsRef.current, snapToPlayhead: false };
       const snapResult = calculateSnap(
         rawTime,
         shapeClip.id,
-        allTracks,
+        tracks,
         useTimelineStore.getState().playheadPosition,
         dragSnapSettings,
-        pixelsPerSecond,
+        pps,
         shapeClip.duration,
       );
       const timelineRect = timelineRef.current?.getBoundingClientRect();
@@ -139,8 +154,8 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
       if (timelineRect) {
         const mouseY = e.clientY - timelineRect.top + scrollTop;
         let cumulativeY = 0;
-        for (const track of allTracks) {
-          const height = trackHeights.get(track.id) ?? 48;
+        for (const track of tracks) {
+          const height = trackHeightsRef.current.get(track.id) ?? 48;
           if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
             if (!track.locked && track.id !== shapeClip.trackId) {
               targetTrackId = track.id;
@@ -151,12 +166,12 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
         }
       }
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
-      onMoveClip(shapeClip.id, snapResult.time);
+      onMoveClipRef.current?.(shapeClip.id, snapResult.time);
     };
 
     const handleMouseUp = async () => {
       const pending = pendingDropRef.current;
-      await onMoveClip(
+      await onMoveClipRef.current?.(
         shapeClip.id,
         pending.time,
         pending.targetTrackId ?? shapeClip.trackId,
@@ -176,17 +191,11 @@ export const ShapeClipComponent: React.FC<ShapeClipComponentProps> = ({
   }, [
     isDragging,
     touchGesture.pointerId,
-    dragOffset,
-    pixelsPerSecond,
     shapeClip.id,
     shapeClip.trackId,
     shapeClip.duration,
-    onMoveClip,
-    snapSettings,
     endTimingGesture,
     timelineRef,
-    allTracks,
-    trackHeights,
   ]);
 
   useEffect(() => {

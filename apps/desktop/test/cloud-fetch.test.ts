@@ -9,6 +9,13 @@ describe("buildUpstreamRequest", () => {
     expect(r.headers["xi-api-key"]).toBe("KEY");
   });
 
+  it("gemini: x-goog-api-key + base url + path", () => {
+    const r = buildUpstreamRequest("gemini", "/models", "KEY", { method: "GET" });
+    expect(r.url).toBe("https://generativelanguage.googleapis.com/v1beta/models");
+    expect(r.method).toBe("GET");
+    expect(r.headers["x-goog-api-key"]).toBe("KEY");
+  });
+
   it("openai: Authorization Bearer + forwards POST body", () => {
     const r = buildUpstreamRequest("openai", "/chat/completions", "KEY", {
       method: "POST",

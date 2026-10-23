@@ -91,7 +91,6 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const isCompoundClip = Boolean(compoundClipId);
   const [isDragging, setIsDragging] = useState(false);
   const [isPendingDrag, setIsPendingDrag] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
   const [dragYOffset, setDragYOffset] = useState(0);
   const [isInvalidDrop, setIsInvalidDrop] = useState(false);
   const [isTrimming, setIsTrimming] = useState(false);
@@ -149,6 +148,20 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   const isMotionClip = Boolean(clip.metadata?.motionClip);
   const clipStyle = getClipStyle(clipMediaType);
 
+  const dragOffsetRef = useRef(0);
+  const allTracksRef = useRef(allTracks);
+  allTracksRef.current = allTracks;
+  const trackHeightsRef = useRef(trackHeights);
+  trackHeightsRef.current = trackHeights;
+  const snapSettingsRef = useRef(snapSettings);
+  snapSettingsRef.current = snapSettings;
+  const onMoveClipRef = useRef(onMoveClip);
+  onMoveClipRef.current = onMoveClip;
+  const onSnapIndicatorRef = useRef(onSnapIndicator);
+  onSnapIndicatorRef.current = onSnapIndicator;
+  const pixelsPerSecondRef = useRef(pixelsPerSecond);
+  pixelsPerSecondRef.current = pixelsPerSecond;
+
   const handleClick = (e: React.MouseEvent) => {
     if (e.button !== 0) return;
     if (isDragging || isPendingDrag) return;
@@ -168,7 +181,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
 
     const clickX = e.clientX - rect.left;
     const clipStartX = clip.startTime * pixelsPerSecond;
-    setDragOffset(clickX - clipStartX);
+    dragOffsetRef.current = clickX - clipStartX;
     dragStartTimeRef.current = clip.startTime;
 
     dragStartRef.current = {
@@ -187,7 +200,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
     const selectedIds = useUIStore.getState().getSelectedClipIds();
     if (selectedIds.length > 1 && selectedIds.includes(clip.id)) {
       const snapshot: Array<{ clipId: string; startTime: number; trackId: string }> = [];
-      for (const t of allTracks) {
+      for (const t of allTracksRef.current) {
         for (const c of t.clips) {
           if (c.id === clip.id) continue;
           if (!selectedIds.includes(c.id)) continue;
@@ -497,23 +510,23 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       const timelineRect = timelineRef.current?.getBoundingClientRect();
       if (!rect || !timelineRect) return;
 
-      const x = e.clientX - rect.left - dragOffset;
-      const rawTime = Math.max(0, x / pixelsPerSecond);
+      const pps = pixelsPerSecondRef.current;
+      const x = e.clientX - rect.left - dragOffsetRef.current;
+      const rawTime = Math.max(0, x / pps);
 
-      const dragSnapSettings = { ...snapSettings, snapToPlayhead: false };
+      const dragSnapSettings = { ...snapSettingsRef.current, snapToPlayhead: false };
       const snapResult = calculateSnap(
         rawTime,
         clip.id,
-        allTracks,
+        allTracksRef.current,
         useTimelineStore.getState().playheadPosition,
         dragSnapSettings,
-        pixelsPerSecond,
+        pps,
         clip.duration,
       );
       const currentScrollTop = timelineRef.current?.scrollTop || 0;
       const scrollDelta = currentScrollTop - dragStartRef.current.scrollTop;
       const yDelta = (e.clientY - dragStartRef.current.mouseY) + scrollDelta;
-      setDragYOffset(yDelta);
 
       const scrollTop = timelineRef.current?.scrollTop || 0;
       const mouseY = e.clientY - timelineRect.top + scrollTop;
@@ -521,11 +534,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       let hoveredTrackIsLocked = false;
       let cumulativeY = 0;
 
-      for (const t of allTracks) {
-        const height = trackHeights.get(t.id) || 48;
+      for (const t of allTracksRef.current) {
+        const height = trackHeightsRef.current.get(t.id) || 48;
         if (mouseY >= cumulativeY && mouseY < cumulativeY + height) {
-          hoveredTrackIsLocked = Boolean(t.locked);
-          if (!t.locked && t.id !== track.id) {
+          const isSameType = t.type === track.type;
+          hoveredTrackIsLocked = Boolean(t.locked) || !isSameType;
+          if (!t.locked && isSameType && t.id !== track.id) {
             targetTrackId = t.id;
           }
           break;
@@ -533,37 +547,29 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
         cumulativeY += height;
       }
 
-      setIsInvalidDrop(hoveredTrackIsLocked);
-
       pendingDropRef.current = { time: snapResult.time, targetTrackId };
 
-      // Coalesce store commits to one per animation frame. A fast mouse
-      // fires many mousemove events between frames; dispatching moveClip on
-      // each one deep-clones the project and re-renders the whole editor
-      // dozens of extra times per frame, which is what made sustained
-      // dragging lag and eventually exhaust memory. We keep the latest move
-      // in a ref and flush it once per frame.
       const moveTime = snapResult.time;
-      // Keep the same origin as companion snapshots even when project updates
-      // reinstall this effect during the gesture.
       const baseStartTime = dragStartTimeRef.current;
       const companions = multiDragSnapshotRef.current;
+      const snapPointTime = snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null;
       pendingCommitRef.current = () => {
-        onMoveClip(clip.id, moveTime, undefined);
-        // Move every companion clip in the multi-selection by the same delta.
+        setDragYOffset(yDelta);
+        setIsInvalidDrop((prev) => (prev !== hoveredTrackIsLocked ? hoveredTrackIsLocked : prev));
+        onSnapIndicatorRef.current(snapPointTime);
+        onMoveClipRef.current(clip.id, moveTime, undefined);
         if (companions.length > 0) {
           const deltaTime = moveTime - baseStartTime;
           for (const snap of companions) {
             const newStart = Math.max(0, snap.startTime + deltaTime);
-            onMoveClip(snap.clipId, newStart, undefined);
+            onMoveClipRef.current(snap.clipId, newStart, undefined);
           }
         }
       };
+
       if (moveCommitRafRef.current === null) {
         moveCommitRafRef.current = requestAnimationFrame(flushPendingCommit);
       }
-
-      onSnapIndicator(snapResult.snapped && snapResult.snapPoint ? snapResult.snapPoint.time : null);
     };
 
     let groupClosed = false;
@@ -589,12 +595,12 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       pendingCommit?.();
 
       const { time, targetTrackId } = pendingDropRef.current;
-      await onMoveClip(clip.id, time, targetTrackId ?? track.id);
+      await onMoveClipRef.current(clip.id, time, targetTrackId ?? track.id);
 
       setIsDragging(false);
       setDragYOffset(0);
       setIsInvalidDrop(false);
-      onSnapIndicator(null);
+      onSnapIndicatorRef.current(null);
       multiDragSnapshotRef.current = [];
       closeGroup();
     };
@@ -607,7 +613,7 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
       setIsDragging(false);
       setDragYOffset(0);
       setIsInvalidDrop(false);
-      onSnapIndicator(null);
+      onSnapIndicatorRef.current(null);
       multiDragSnapshotRef.current = [];
       closeGroup();
     };
@@ -628,17 +634,10 @@ export const ClipComponent: React.FC<ClipComponentProps> = ({
   }, [
     isDragging,
     touchGesture.pointerId,
-    dragOffset,
-    pixelsPerSecond,
     clip.id,
     clip.duration,
     track.id,
-    allTracks,
-    trackHeights,
     timelineRef,
-    snapSettings,
-    onMoveClip,
-    onSnapIndicator,
   ]);
 
   useEffect(() => {

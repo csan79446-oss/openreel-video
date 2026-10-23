@@ -102,6 +102,7 @@ export type RigHumanoidModelResult = z.infer<typeof rigHumanoidModelResultSchema
 export const cloudFetchArgsSchema = z.object({
   service: z.enum([
     "elevenlabs",
+    "gemini",
     "openai",
     "anthropic",
     "openai-compatible",
